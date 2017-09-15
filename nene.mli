@@ -6,23 +6,45 @@ type episode =
   { number  : int
   ; version : int }
 
-val torrents_of_rss_doc : string -> torrent list
+module IntMap : Map.S
 
-val fetch_torrents : string -> (torrent list) Lwt.t
+type episode_map
+
+type url
+
+module Save : sig
+  val load_trackers : string -> (string * (string * Str.regexp) list) list
+
+  val load_seen : string -> (string * episode_map) list
+
+  val save_seen : string -> (string * episode_map) list -> unit
+end
+
+module Config : sig
+  val seen : string
+
+  val trackers : string
+
+  val download : url -> string Lwt.t
+
+  val add_torrent : url -> unit Lwt.t
+end
+
+val torrents_of_rss_doc : string -> torrent list
 
 val episode_of_filename : Str.regexp -> string -> episode
 
 val new_episodes
   : Str.regexp
-  -> (int * int) list * (string * episode) list
+  -> episode_map * (url * episode) list
   -> torrent
-  -> (int * int) list * (string * episode) list
+  -> episode_map * (url * episode) list
 
 val filter_new_eps
-  : (string * (int * int) list) list
+  : (string * episode_map) list
   -> (string * Str.regexp) list
   -> torrent list
-  -> (string * (int * int) list * (string * episode) list) list
+  -> (string * episode_map * (url * episode) list) list
 
 val print_show : string -> episode -> unit
 

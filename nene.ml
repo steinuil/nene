@@ -1,90 +1,10 @@
 (* Util *)
-let update_assoc assoc nw = function
-  | [] -> [ assoc, nw ]
-  | ls -> List.remove_assoc assoc ls |> List.cons (assoc, nw)
-
-
-let (>>) f1 f2 x = f2 (f1 x)
-let (<<) f2 f1 x = f2 (f1 x)
-
-
-module Save : sig
-  val load_trackers : string -> (string * (string * Str.regexp) list) list
-
-  val load_seen : string -> (string * (int * int) list) list
-
-  val save_seen : string -> (string * (int * int) list) list -> unit
-end = struct
-  open Sexplib
-
-  let decode_trackers =
-    let open Conv in
-    let regexp_of_sexp = string_of_sexp >> Str.regexp in
-    pair_of_sexp string_of_sexp
-      (list_of_sexp
-        (pair_of_sexp string_of_sexp regexp_of_sexp))
-
-  let load_trackers file =
-    Sexp.load_sexps_conv_exn file decode_trackers
-
-    (*
-  let episode_of_sexp t =
-    let open Conv in
-    let number, version = pair_of_sexp int_of_sexp int_of_sexp t in
-    { number; version }
-
-  let sexp_of_episode { number; version } =
-    let open Conv in
-    let f = sexp_of_pair sexp_of_int sexp_of_int in
-    f (number, version)
-    *)
-
-  let decode_seen =
-    let open Conv in
-    pair_of_sexp string_of_sexp
-      (list_of_sexp
-        (pair_of_sexp int_of_sexp int_of_sexp))
-
-  let encode_seen =
-    let open Conv in
-    sexp_of_pair sexp_of_string
-      (sexp_of_list
-        (sexp_of_pair sexp_of_int sexp_of_int))
-
-  let load_seen file =
-    Sexplib.Sexp.load_sexps_conv_exn file decode_seen
-
-  let save_seen file seen =
-    List.map encode_seen seen
-    |> Sexplib.Sexp.save_sexps_hum file
-end
-
-
-module Config : sig
-  val seen : string
-
-  val trackers : string
-
-  val download : string -> string Lwt.t
-
-  val add_torrent : string -> unit Lwt.t
-end = struct
-  let seen = "seen.scm"
-
-  let trackers = "shows.scm"
-
-  let download url =
-    let cmd = "curl", [|"nene-fetch"; url|] in
-    Lwt_process.pread ~stderr:`Dev_null ~env:[||] cmd
-
-  let download_dir = "/home/steenuil/vid/airing"
-
-  let add_torrent uri =
-    let args = [|"nene-send"; "-a"; uri; "-w"; download_dir|] in
-    let cmd = "transmission-remote", args in
-    let open Lwt.Infix in
-    ignore =|< Lwt_process.exec ~stderr:`Dev_null cmd
-end
+let ( ||> ) (x1, x2) f = f x1 x2
+let ( <|| ) f (x1, x2) = f x1 x2
+let ( |||> ) (x1, x2, x3) f = f x1 x2 x3
+let ( <||| ) f (x1, x2, x3) = f x1 x2 x3
+let ( >> ) f1 f2 x = f2 (f1 x)
+let ( << ) f2 f1 x = f2 (f1 x)
 
 
 open Lwt.Infix
@@ -98,6 +18,73 @@ type torrent =
 type episode =
   { number  : int
   ; version : int }
+
+
+module IntMap = Map.Make(struct
+  type t = int
+  let compare = Pervasives.compare
+end)
+
+
+type episode_map = int IntMap.t
+
+
+type url = string
+
+
+module Save = struct
+  open Sexplib
+  open Conv
+
+  let decode_trackers =
+    let regexp_of_sexp = string_of_sexp >> Str.regexp in
+    pair_of_sexp string_of_sexp
+      (list_of_sexp
+        (pair_of_sexp string_of_sexp regexp_of_sexp))
+
+  let load_trackers file =
+    Sexp.load_sexps_conv_exn file decode_trackers
+
+  let episode_map_of_sexp =
+    let mkep map (num, ver) = IntMap.add num ver map in
+    pair_of_sexp int_of_sexp int_of_sexp |> list_of_sexp
+    >> List.fold_left mkep IntMap.empty
+
+  let sexp_of_episode_map =
+    IntMap.bindings
+    >> sexp_of_list (sexp_of_pair sexp_of_int sexp_of_int)
+
+  let decode_seen =
+    pair_of_sexp string_of_sexp episode_map_of_sexp
+
+  let encode_seen =
+    sexp_of_pair sexp_of_string sexp_of_episode_map
+
+  let load_seen file =
+    Sexp.load_sexps_conv_exn file decode_seen
+
+  let save_seen file seen =
+    List.map encode_seen seen
+    |> Sexp.save_sexps_hum file
+end
+
+
+module Config = struct
+  let seen = "seen.scm"
+
+  let trackers = "shows.scm"
+
+  let download url =
+    let cmd = "curl", [|"nene-fetch"; url|] in
+    Lwt_process.pread ~stderr:`Dev_null ~env:[||] cmd
+
+  let download_dir = "/home/steenuil/vid/airing"
+
+  let add_torrent uri =
+    let args = [|"nene-send"; "-a"; uri; "-w"; download_dir|] in
+    let cmd = "transmission-remote", args in
+    ignore =|< Lwt_process.exec ~stderr:`Dev_null cmd
+end
 
 
 (* *)
@@ -135,11 +122,6 @@ let torrents_of_rss_doc doc =
   | _ -> failwith "not an rss document"
 
 
-let fetch_torrents url =
-  Config.download url
-  >>= Lwt.wrap1 torrents_of_rss_doc
-
-
 
 (* *)
 let episode_of_filename regexp filename =
@@ -161,17 +143,21 @@ let episode_of_filename regexp filename =
 let new_episodes regexp (seen_eps, diff) { filename; link } =
   if Str.string_match regexp filename 0 then
     let { number; version } as ep = episode_of_filename regexp filename in
-    let last_ver = try List.assoc number seen_eps with Not_found -> -1 in
+    let last_ver =
+      try IntMap.find number seen_eps with
+      | Not_found -> -1 in
     if version > last_ver then
       let diff_ep = link, ep in
-      update_assoc number version seen_eps, diff_ep :: diff
+      IntMap.add number version seen_eps, diff_ep :: diff
     else seen_eps, diff
   else seen_eps, diff
 
 
 let filter_new_eps seen_shows tracker_shows torrents =
   tracker_shows |> List.map @@ fun (title, regexp) ->
-    let seen_eps = try List.assoc title seen_shows with Not_found -> [] in
+    let seen_eps =
+      try List.assoc title seen_shows with
+      | Not_found -> IntMap.empty in
     let all_eps, diff =
       let f = new_episodes regexp in
       List.fold_left f (seen_eps, []) torrents in
@@ -189,17 +175,20 @@ let print_show title { number; version } =
   print_newline ()
 
 
+let download_show title (link, ep) =
+  Lwt.ignore_result @@ Config.add_torrent link;
+  print_show title ep
+
+
 let main () =
   let trackers = Save.load_trackers Config.trackers in
   let seen = Save.load_seen Config.seen in
   trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
-    fetch_torrents rss_url >|= fun torrents ->
+    Config.download rss_url >|= fun doc ->
+    let torrents = try torrents_of_rss_doc doc with Failure _ -> [] in
     let new_eps = filter_new_eps seen tracker_shows torrents in
     new_eps |> List.map begin fun (title, seen, diff) ->
-      diff |> List.iter begin fun (link, ep) ->
-        Lwt.ignore_result @@ Config.add_torrent link;
-        print_show title ep
-      end;
+      diff |> List.iter @@ download_show title;
       title, seen
     end
   end >|= fun seen ->
