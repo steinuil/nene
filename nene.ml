@@ -61,7 +61,8 @@ module Save = struct
     sexp_of_pair sexp_of_string sexp_of_episode_map
 
   let load_seen file =
-    Sexp.load_sexps_conv_exn file decode_seen
+    try Sexp.load_sexps_conv_exn file decode_seen with
+    | Sys_error _ -> []
 
   let save_seen file seen =
     List.map encode_seen seen
@@ -76,7 +77,7 @@ module Config = struct
 
   let download url =
     let cmd = "curl", [|"nene-fetch"; url|] in
-    Lwt_process.pread ~stderr:`Dev_null ~env:[||] cmd
+    Lwt_process.pread ~timeout:10. ~stderr:`Dev_null ~env:[||] cmd
 
   let download_dir = "/home/steenuil/vid/airing"
 
@@ -185,7 +186,14 @@ let main () =
   let seen = Save.load_seen Config.seen in
   trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
     Config.download rss_url >|= fun doc ->
-    let torrents = try torrents_of_rss_doc doc with Failure _ -> [] in
+    let torrents =
+      try torrents_of_rss_doc doc with
+      | Failure str ->
+          print_endline @@ "error while processing " ^ rss_url ^ ": " ^ str;
+          []
+      | _ ->
+          print_endline @@ "error while processing " ^ rss_url;
+          [] in
     let new_eps = filter_new_eps seen tracker_shows torrents in
     new_eps |> List.map begin fun (title, seen, diff) ->
       diff |> List.iter @@ download_show title;
