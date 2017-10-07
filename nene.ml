@@ -77,7 +77,10 @@ module Config = struct
 
   let download url =
     let cmd = "curl", [|"nene-fetch"; url|] in
-    Lwt_process.pread ~timeout:10. ~stderr:`Dev_null ~env:[||] cmd
+    Lwt.catch
+      (fun () ->
+        Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd)
+      (fun _ -> Lwt.return "")
 
   let download_dir = "/home/steenuil/vid/airing"
 
