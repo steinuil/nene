@@ -3,7 +3,7 @@
 It is much faster than alternatives like [flexget](https://flexget.com/), due to being written in a compiled language and running several tasks concurrently.
 
 ## Building
-`nene` requires **OCaml** and opam to be built, and **curl** and **transmission-daemon** with its client **transmission-remote** to be used. Support for more downloaders and torrent clients will be configurable in a separate config file at a later date.
+`nene` requires **OCaml** and **opam** to be built, and **curl** and **transmission-daemon** with its client **transmission-remote** to be used. Support for more downloaders and torrent clients will be configurable in a separate config file at a later date.
 
 To install the dependencies and build:
 ```
@@ -12,7 +12,19 @@ make
 ```
 
 ## Usage
-`nene` requires a configuration file called `shows.scm`, defining the series and the RSS urls to fetch them from.
+To fetch shows, simply call it with no arguments.
+
+```
+$ nene
+```
+
+`nene` requires a shows file, by default called `shows.scm`, defining the series and the RSS urls to fetch them from.
+
+The default position of the config file is the current directory, but it can be changed by passing the file's path as an argument:
+
+```
+$ nene -shows /path/to/shows-file.scm
+```
 
 This is an example config file:
 ```Scheme
@@ -38,8 +50,9 @@ The regexp strings follow the same quoting rules as OCaml's [Str module](https:/
 Seeing as most filenames have a few recurring parts, this could be replaced by some manner of specifying where the episode number and version are without having to quote everything.
 
 ## Known issues
-- The position of the config files is not configurable at runtime.
+- Many things are not configurable at runtime.
 - It depends on curl and transmission-remote. I'd like to use a pure OCaml library to replace them.
 - It doesn't check whether adding the torrent to Transmission has succeeded.
 - There might be a few uncaught exceptions that should have been caught.
 - Generally, the program should work by having a tree of transactions that abort gracefully. Right now it doesn't work nearly as consistently.
+- It accepts any command line argument you throw at it.

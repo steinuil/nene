@@ -73,7 +73,12 @@ end
 module Config = struct
   let seen = "seen.scm"
 
-  let trackers = "shows.scm"
+  let trackers =
+    let rec loop = function
+      | "-shows" :: path :: _ -> path
+      | _ :: rest -> loop rest
+      | [] -> "shows.scm" in
+    loop @@ Array.to_list Sys.argv
 
   let download url =
     let cmd = "curl", [|"nene-fetch"; url|] in
