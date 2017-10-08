@@ -71,13 +71,31 @@ end
 
 
 module Config = struct
-  let seen = "seen.scm"
+  let home_dir =
+    Sys.getenv "HOME"
+
+  let nene_dir =
+    let config_dir =
+      match Sys.getenv_opt "XDG_CONFIG_HOME" with
+      | Some dir -> dir
+      | None ->
+          Filename.concat home_dir ".config" in
+    let nene_dir = Filename.concat config_dir "nene" in
+    if not @@ Sys.file_exists nene_dir then
+      Unix.mkdir nene_dir 0o644;
+    nene_dir
+
+  let config_file f =
+    Filename.concat nene_dir f
+
+  let seen =
+    config_file "seen.scm"
 
   let trackers =
     let rec loop = function
-      | "-shows" :: path :: _ -> path
+      | "-shows" :: file_path :: _ -> file_path
       | _ :: rest -> loop rest
-      | [] -> "shows.scm" in
+      | [] -> config_file "shows.scm" in
     loop @@ Array.to_list Sys.argv
 
   let download url =
@@ -87,7 +105,12 @@ module Config = struct
         Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd)
       (fun _ -> Lwt.return "")
 
-  let download_dir = "/home/steenuil/vid/airing"
+  let download_dir =
+    let rec loop = function
+      | "-download-dir" :: path :: _ -> path
+      | _ :: rest -> loop rest
+      | [] -> Filename.concat home_dir "vid/airing" in
+    loop @@ Array.to_list Sys.argv
 
   let add_torrent uri =
     let args = [|"nene-send"; "-a"; uri; "-w"; download_dir|] in

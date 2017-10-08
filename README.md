@@ -20,13 +20,28 @@ $ nene
 
 `nene` requires a shows file, by default called `shows.scm`, defining the series and the RSS urls to fetch them from.
 
-The default position of the config file is the current directory, but it can be changed by passing the file's path as an argument:
+`nene` makes use of the XDG base directory `XDG_CONFIG_DIR`, which can be defined by the environment variable of the same name and defaults to `$HOME/.config`. The default position of the `shows.scm` file is inside that directory, but you can change it by passing it as a command line option:
 
 ```
 $ nene -shows /path/to/shows-file.scm
 ```
 
-This is an example config file:
+The default download directory is `$HOME/vid/airing` because that's where I keep my airing shows, but it can be changed by passing `-download-dir`. At this time, the default download directory can only be changed at compile time.
+
+```
+$ nene -download-dir path/to/download/dir
+```
+
+`nene` doesn't and won't run as a daemon; your OS most likely has one or a few perfectly good systems to run tasks periodically. If you have `cron(8)` running, you can add this line to your crontab file to run `nene` every 15 minutes:
+
+```
+0/15 * * * * /path/to/nene -download-dir /path/to/download/dir
+```
+
+Refer to the `cron` and `crontab` manpages for more information.
+
+### Shows file
+This is an example shows file:
 ```Scheme
 (https://nyaa.si/?page=rss&q=kirakira+precure+anon&c=0_0&f=0
   (("KiraKira Precure À La Mode"
