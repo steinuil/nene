@@ -71,6 +71,22 @@ end
 
 
 module Config = struct
+  let (download_dir', shows_file') =
+    let args = List.tl @@ Array.to_list Sys.argv in
+    let rec loop = function
+      | [], files -> files
+      | "-download-dir" :: path :: rest, (None, seen) ->
+          loop (rest, (Some path, seen))
+      | "-shows" :: path :: rest, (dl, None) ->
+          loop (rest, (dl, Some path))
+      | "-h" :: _, _ | "-help" :: _, _ ->
+          print_endline ("Usage: " ^ Sys.argv.(0)
+            ^ " [-h] [-download-dir <path>] [-shows <path>]");
+          exit 0
+      | opt :: _, _ ->
+          failwith ("Unrecognized option: " ^ opt) in
+    loop (args, (None, None))
+
   let home_dir =
     Sys.getenv "HOME"
 
@@ -91,12 +107,13 @@ module Config = struct
   let seen =
     config_file "seen.scm"
 
-  let trackers =
-    let rec loop = function
-      | "-shows" :: file_path :: _ -> file_path
-      | _ :: rest -> loop rest
-      | [] -> config_file "shows.scm" in
-    loop @@ Array.to_list Sys.argv
+  let trackers = match shows_file' with
+    | Some f -> f
+    | None -> config_file "shows.scm"
+
+  let download_dir = match download_dir' with
+    | Some d -> d
+    | None -> Filename.concat home_dir "vid/airing"
 
   let download url =
     let cmd = "curl", [|"nene-fetch"; url|] in
@@ -104,13 +121,6 @@ module Config = struct
       (fun () ->
         Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd)
       (fun _ -> Lwt.return "")
-
-  let download_dir =
-    let rec loop = function
-      | "-download-dir" :: path :: _ -> path
-      | _ :: rest -> loop rest
-      | [] -> Filename.concat home_dir "vid/airing" in
-    loop @@ Array.to_list Sys.argv
 
   let add_torrent uri =
     let args = [|"nene-send"; "-a"; uri; "-w"; download_dir|] in

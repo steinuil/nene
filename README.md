@@ -60,7 +60,8 @@ This is an example shows file:
 
 The file should follow the schema `(<rss url> ((<show name> <show regexp>) ...)) ...`. Strings with spaces or parenthesis in them should always be double quoted.
 
-The regexp strings follow the same quoting rules as OCaml's [Str module](https://caml.inria.fr/pub/docs/manual-ocaml-4.05/libref/Str.html), and the first and second match groups should be respectively the episode number and its version. I opted for this instead of tyring to automatically parse filenames, because automatically parsing filenames is impossible, and I dare you to come up with a consistent way of parsing them if you don't think this is the case.
+The regexp strings follow the same quoting rules as OCaml's [Str module](https://caml.inria.fr/pub/docs/manual-ocaml-4.05/libref/Str.html), and the first and second match groups should be respectively the episode number and its version.
+Think using regular expression literals instead of parsing filenames programmatically is a hack? Let's see you do better.
 
 Seeing as most filenames have a few recurring parts, this could be replaced by some manner of specifying where the episode number and version are without having to quote everything.
 
@@ -70,4 +71,4 @@ Seeing as most filenames have a few recurring parts, this could be replaced by s
 - It doesn't check whether adding the torrent to Transmission has succeeded.
 - There might be a few uncaught exceptions that should have been caught.
 - Generally, the program should work by having a tree of transactions that abort gracefully. Right now it doesn't work nearly as consistently.
-- It accepts any command line argument you throw at it.
+- Should be able to specify the number of threads that can be running at the same time
