@@ -5,6 +5,7 @@ let ( |||> ) (x1, x2, x3) f = f x1 x2 x3
 let ( <||| ) f (x1, x2, x3) = f x1 x2 x3
 let ( >> ) f1 f2 x = f2 (f1 x)
 let ( << ) f2 f1 x = f2 (f1 x)
+let with_default def = function Some x -> x | None -> def
 
 
 open Lwt.Infix
@@ -71,21 +72,41 @@ end
 
 
 module Config = struct
-  let (download_dir', shows_file') =
+  type flags =
+    { download_dir : string option
+    ; shows_file   : string option
+    ; transmission_host : string option
+    ; transmission_port : int option }
+
+  let flags =
     let args = List.tl @@ Array.to_list Sys.argv in
-    let rec loop = function
-      | [], files -> files
-      | "-download-dir" :: path :: rest, (None, seen) ->
-          loop (rest, (Some path, seen))
-      | "-shows" :: path :: rest, (dl, None) ->
-          loop (rest, (dl, Some path))
+    let rec loop flags acc = match flags, acc with
+      | [], acc -> acc
+      | "-download-dir" :: path :: rest
+      , { download_dir = None; _ } ->
+          loop rest { acc with download_dir = Some path }
+      | "-shows" :: path :: rest
+      , { shows_file = None; _ } ->
+          loop rest { acc with shows_file = Some path }
+      | "-transmission-host" :: host :: rest
+      , { transmission_host = None; _ } ->
+          loop rest { acc with transmission_host = Some host }
+      | "-transmission-port" :: port :: rest
+      , { transmission_port = None; _ } ->
+          let port = int_of_string port in
+          loop rest { acc with transmission_port = Some port }
       | "-h" :: _, _ | "-help" :: _, _ ->
-          print_endline ("Usage: " ^ Sys.argv.(0)
-            ^ " [-h] [-download-dir <path>] [-shows <path>]");
+          let cmd_name = Sys.argv.(0) in
+          print_endline ("Usage: " ^ cmd_name
+            ^ " [-h] [-download-dir <path>] [-shows <path>]\n"
+            ^ String.make (8 + String.length cmd_name) ' '
+            ^ "[-transmission-host <host>] [-transmission-port <port>]");
           exit 0
       | opt :: _, _ ->
           failwith ("Unrecognized option: " ^ opt) in
-    loop (args, (None, None))
+    loop args
+      { download_dir = None; shows_file = None
+      ; transmission_host = None; transmission_port = None }
 
   let home_dir =
     Sys.getenv "HOME"
@@ -101,17 +122,17 @@ module Config = struct
       Unix.mkdir nene_dir 0o644;
     nene_dir
 
-  let config_file f =
+  let in_config_dir f =
     Filename.concat nene_dir f
 
   let seen =
-    config_file "seen.scm"
+    in_config_dir "seen.scm"
 
-  let trackers = match shows_file' with
+  let trackers = match flags.shows_file with
     | Some f -> f
-    | None -> config_file "shows.scm"
+    | None -> in_config_dir "shows.scm"
 
-  let download_dir = match download_dir' with
+  let download_dir = match flags.download_dir with
     | Some d -> d
     | None -> Filename.concat home_dir "vid/airing"
 
@@ -122,10 +143,40 @@ module Config = struct
         Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd)
       (fun _ -> Lwt.return "")
 
-  let add_torrent uri =
-    let args = [|"nene-send"; "-a"; uri; "-w"; download_dir|] in
-    let cmd = "transmission-remote", args in
-    ignore =|< Lwt_process.exec ~stderr:`Dev_null cmd
+  let session_id_mutex = Lwt_mutex.create ()
+
+  let transmission_url =
+    let port = with_default 9091 flags.transmission_port in
+    let host = with_default "127.0.0.1" flags.transmission_host in
+    Uri.make ~scheme:"http" ~port ~host ~path:"/transmission/rpc" ()
+
+  let session_id' : Cohttp.Header.t option ref =
+    ref None
+
+  let session_id () =
+    Lwt_mutex.lock session_id_mutex >>= fun () ->
+    match !session_id' with
+    | Some headers ->
+        Lwt_mutex.unlock session_id_mutex;
+        Lwt.return headers
+    | None ->
+        Cohttp_lwt_unix.Client.get transmission_url >|= fun (resp, _) ->
+        let headers = Cohttp_lwt.Response.headers resp in
+        let header_name = "X-Transmission-Session-Id" in
+        let session_id_hdr =
+          match Cohttp.Header.get headers header_name with
+          | Some id -> Cohttp.Header.init_with header_name id
+          | None -> Cohttp.Header.init () in
+        session_id' := Some session_id_hdr;
+        Lwt_mutex.unlock session_id_mutex;
+        session_id_hdr
+
+  let add_torrent url =
+    session_id () >>= fun headers ->
+    let body = Cohttp_lwt_body.of_string ("{\"method\":\"torrent-add\",\"arguments\":{\"download-dir\":\""
+      ^ download_dir ^ "\",\"filename\":\"" ^ url ^ "\"}}") in
+    Cohttp_lwt_unix.Client.post ~body ~headers transmission_url >>= fun (_, body) ->
+    Cohttp_lwt_body.to_string body >|= print_endline
 end
 
 
@@ -133,17 +184,17 @@ end
 let torrent_of_item_attrs attrs =
   let rec loop =
     let open Xml in function
-    | (Some filename, Some link), _ ->
+    | _, (Some filename, Some link) ->
         { filename; link }
-    | (_, l), Element ("title", _, [PCData name]) :: rest ->
-        loop ((Some name, l), rest)
-    | (n, _), Element ("link", _, [PCData link]) :: rest ->
-        loop ((n, Some link), rest)
-    | x, _ :: rest ->
-        loop (x, rest)
-    | _, [] ->
+    | Element ("title", _, [PCData name]) :: rest, (_, l) ->
+        loop (rest, (Some name, l))
+    | Element ("link",  _, [PCData link]) :: rest, (n, _) ->
+        loop (rest, (n, Some link))
+    | _ :: rest, x ->
+        loop (rest, x)
+    | [], _ ->
         failwith "no item title or link"
-  in loop ((None, None), attrs)
+  in loop (attrs, (None, None))
 
 
 let torrent_of_item =
@@ -160,7 +211,7 @@ let torrents_of_rss_doc doc =
   let open Xml in
   match parse_string doc with
   | Element ("rss", _, [Element ("channel", _, children)]) ->
-      children |> List.fold_left filter_items []
+      List.fold_left filter_items [] children
   | _ -> failwith "not an rss document"
 
 

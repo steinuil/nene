@@ -3,11 +3,11 @@
 It is much faster than alternatives like [flexget](https://flexget.com/), due to being written in a compiled language and running several tasks concurrently.
 
 ## Building
-`nene` requires **OCaml** and **opam** to be built, and **curl** and **transmission-daemon** with its client **transmission-remote** to be used. Support for more downloaders and torrent clients will be configurable in a separate config file at a later date.
+`nene` requires **OCaml** and **opam** to be built, and **curl** and **transmission-daemon** to be used. Support for more downloaders and torrent clients will be configurable in a separate config file at a later date.
 
 To install the dependencies and build:
 ```
-opam install xml-light sexplib lwt
+opam install xml-light sexplib cohttp-lwt-unix
 make
 ```
 
@@ -26,10 +26,10 @@ $ nene
 $ nene -shows /path/to/shows-file.scm
 ```
 
-The default download directory is `$HOME/vid/airing` because that's where I keep my airing shows, but it can be changed by passing `-download-dir`. At this time, the default download directory can only be changed at compile time.
+`nene` will add the torrent to transmission (by default calling 127.0.0.1:9091) in the download directory defined by `-download-dir` (by default `$HOME/vid/airing`, because that's where I keep my shows). At this time, the default download directory can only be changed at compile time.
 
 ```
-$ nene -download-dir path/to/download/dir
+$ nene -download-dir path/to/download/dir -transmission-host localhost -transmission-port 9092
 ```
 
 `nene` doesn't and won't run as a daemon; your OS most likely has one or a few perfectly good systems to run tasks periodically. If you have `cron(8)` running, you can add this line to your crontab file to run `nene` every 15 minutes:
@@ -66,8 +66,8 @@ Think using regular expression literals instead of parsing filenames programmati
 Seeing as most filenames have a few recurring parts, this could be replaced by some manner of specifying where the episode number and version are without having to quote everything.
 
 ## Known issues
-- Many things are not configurable at runtime.
-- It depends on curl and transmission-remote. I'd like to use a pure OCaml library to replace them.
+- Some things are not configurable at runtime.
+- It depends on curl for downloading shows. For some reason my version of Cohttp doesn't work with SSL, so I'll try to fix that.
 - It doesn't check whether adding the torrent to Transmission has succeeded.
 - There might be a few uncaught exceptions that should have been caught.
 - Generally, the program should work by having a tree of transactions that abort gracefully. Right now it doesn't work nearly as consistently.

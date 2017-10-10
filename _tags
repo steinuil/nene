@@ -1,1 +1,1 @@
-true: package(str), package(xml-light), package(sexplib), package(lwt.unix)
+true: package(str), package(xml-light), package(sexplib), package(cohttp-lwt-unix)
