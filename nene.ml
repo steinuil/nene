@@ -172,9 +172,13 @@ module Config = struct
         session_id_hdr
 
   let add_torrent url =
+    let json = `Assoc
+        [ "method", `String "torrent-add"
+        ; "arguments", `Assoc
+          [ "download-dir", `String download_dir
+          ; "filename", `String url ] ] in
     session_id () >>= fun headers ->
-    let body = Cohttp_lwt_body.of_string ("{\"method\":\"torrent-add\",\"arguments\":{\"download-dir\":\""
-      ^ download_dir ^ "\",\"filename\":\"" ^ url ^ "\"}}") in
+    let body = Cohttp_lwt_body.of_string @@ Yojson.to_string json in
     Cohttp_lwt_unix.Client.post ~body ~headers transmission_url >>= fun (_, body) ->
     Cohttp_lwt_body.to_string body >|= print_endline
 end

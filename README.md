@@ -7,7 +7,7 @@ It is much faster than alternatives like [flexget](https://flexget.com/), due to
 
 To install the dependencies and build:
 ```
-opam install xml-light sexplib cohttp-lwt-unix
+opam install xml-light sexplib cohttp-lwt-unix yojson
 make
 ```
 
