@@ -273,7 +273,7 @@ let print_show title { number; version } =
 
 
 let download_show title (link, ep) =
-  Lwt.ignore_result @@ Config.add_torrent link;
+  Config.add_torrent link >|= fun () ->
   print_show title ep
 
 
@@ -281,7 +281,7 @@ let main () =
   let trackers = Save.load_trackers Config.trackers in
   let seen = Save.load_seen Config.seen in
   trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
-    Config.download rss_url >|= fun doc ->
+    Config.download rss_url >>= fun doc ->
     let torrents =
       try torrents_of_rss_doc doc with
       | Failure str ->
@@ -291,8 +291,8 @@ let main () =
           print_endline @@ "error while processing " ^ rss_url;
           [] in
     let new_eps = filter_new_eps seen tracker_shows torrents in
-    new_eps |> List.map begin fun (title, seen, diff) ->
-      diff |> List.iter @@ download_show title;
+    new_eps |> Lwt_list.map_s begin fun (title, seen, diff) ->
+      Lwt_list.iter_s (download_show title) diff >|= fun () ->
       title, seen
     end
   end >|= fun seen ->
