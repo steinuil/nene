@@ -1,34 +1,4 @@
-type torrent =
-  { filename : string
-  ; link     : string }
-
-type episode =
-  { number  : int
-  ; version : int }
-
-module IntMap : Map.S
-
-type episode_map
-
-type url
-
-module Save : sig
-  val load_trackers : string -> (string * (string * Str.regexp) list) list
-
-  val load_seen : string -> (string * episode_map) list
-
-  val save_seen : string -> (string * episode_map) list -> unit
-end
-
-module Config : sig
-  val seen : string
-
-  val trackers : string
-
-  val download : url -> string Lwt.t
-
-  val add_torrent : url -> unit Lwt.t
-end
+open Types
 
 val torrents_of_rss_doc : string -> torrent list
 
