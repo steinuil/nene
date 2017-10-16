@@ -71,11 +71,11 @@ let in_config_dir f =
   Filename.concat nene_dir f
 
 
-let seen =
+let seen_file =
   in_config_dir "seen.scm"
 
 
-let shows = match flags.shows_file with
+let shows_file = match flags.shows_file with
   | Some f -> f
   | None -> in_config_dir "shows.scm"
 

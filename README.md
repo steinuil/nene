@@ -7,7 +7,7 @@ It is much faster than alternatives like [flexget](https://flexget.com/), due to
 
 To install the dependencies and build:
 ```
-make deps all
+make install-deps all
 ```
 
 ## Usage

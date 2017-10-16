@@ -91,14 +91,15 @@ let print_show title { number; version } =
 
 
 let download_show title (link, ep) =
-  Config.add_torrent link
-  >> Lwt.return @@ print_show title ep
+  let%lwt () = Config.add_torrent link in
+  print_show title ep;
+  Lwt.return_unit
 
 
 let main () =
-  let trackers = Save.load_trackers Config.shows in
-  let seen = Save.load_seen Config.seen in
-  trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
+  let trackers = Save.load_trackers Config.shows_file in
+  let seen = Save.load_seen Config.seen_file in
+  let%lwt new_seen = trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
     let%lwt doc = Config.download rss_url in
     let torrents =
       try torrents_of_rss_doc doc with
@@ -110,11 +111,12 @@ let main () =
           [] in
     let new_eps = filter_new_eps seen tracker_shows torrents in
     new_eps |> Lwt_list.map_s begin fun (title, seen, diff) ->
-      Lwt_list.iter_s (download_show title) diff
-      >> Lwt.return (title, seen)
+      let%lwt () = Lwt_list.iter_s (download_show title) diff in
+      Lwt.return (title, seen)
     end
-  end >|= fun seen ->
-  seen |> List.flatten |> Save.save_seen Config.seen
+  end in
+  Save.save_seen Config.seen_file (List.flatten new_seen);
+  Lwt.return_unit
 
 
 let () =

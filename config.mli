@@ -1,8 +1,8 @@
 open Types
 
-val seen : string
+val seen_file : string
 
-val shows : string
+val shows_file : string
 
 val download : url -> string Lwt.t
 
