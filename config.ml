@@ -63,7 +63,7 @@ let nene_dir =
         Filename.concat home_dir ".config" in
   let nene_dir = Filename.concat config_dir "nene" in
   if not @@ Sys.file_exists nene_dir then
-    Unix.mkdir nene_dir 0o644;
+    Unix.mkdir nene_dir 0o700;
   nene_dir
 
 
@@ -130,6 +130,6 @@ let add_torrent url =
         [ "download-dir", `String download_dir
         ; "filename", `String url ] ] in
   let%lwt headers = session_id () in
-  let body = Cohttp_lwt_body.of_string @@ Yojson.to_string json in
+  let body = Cohttp_lwt.Body.of_string @@ Yojson.to_string json in
   let%lwt (_, body) = Cohttp_lwt_unix.Client.post ~body ~headers transmission_url in
-  Cohttp_lwt_body.to_string body >|= print_endline
+  Cohttp_lwt.Body.to_string body >|= print_endline
