@@ -25,7 +25,7 @@ $ nene
 $ nene -shows /path/to/shows-file.scm
 ```
 
-`nene` will add the torrent to transmission (by default calling 127.0.0.1:9091) in the download directory defined by `-download-dir` (by default `$HOME/vid/airing`, because that's where I keep my shows). At this time, the default download directory can only be changed at compile time.
+`nene` will add the torrent to transmission (by default calling 127.0.0.1:9091) in the default transmission download directory (which can be changed with the option `-download-dir`).
 
 ```
 $ nene -download-dir path/to/download/dir -transmission-host localhost -transmission-port 9092
@@ -60,7 +60,7 @@ This is an example shows file:
 The file should follow the schema `(<rss url> ((<show name> <show regexp>) ...)) ...`. Strings with spaces or parenthesis in them should always be double quoted.
 
 The regexp strings follow the same quoting rules as OCaml's [Str module](https://caml.inria.fr/pub/docs/manual-ocaml-4.05/libref/Str.html), and the first and second match groups should be respectively the episode number and its version.
-Think using regular expression literals instead of parsing filenames programmatically is a hack? **Let's see you do better.**
+Think using regular expression literals instead of parsing filenames programmatically is a hack? [Let's see you do better.](https://youtu.be/4PaWFYm0kEw?t=41m53s)
 
 Seeing as most filenames have a few recurring parts, this could be replaced by some manner of specifying where the episode number and version are without having to quote everything.
 

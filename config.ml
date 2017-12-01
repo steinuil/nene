@@ -80,11 +80,6 @@ let shows_file = match flags.shows_file with
   | None -> in_config_dir "shows.scm"
 
 
-let download_dir = match flags.download_dir with
-  | Some d -> d
-  | None -> Filename.concat home_dir "vid/airing"
-
-
 let download url =
   let cmd = "curl", [|"nene-fetch"; url|] in
   try%lwt Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd
@@ -124,11 +119,13 @@ let session_id () =
 
 
 let add_torrent url =
+  let dl_dir = match flags.download_dir with
+    | Some d -> [ "download-dir", `String d ]
+    | None -> [] in
   let json = `Assoc
       [ "method", `String "torrent-add"
       ; "arguments", `Assoc
-        [ "download-dir", `String download_dir
-        ; "filename", `String url ] ] in
+        (("filename", `String url) :: dl_dir) ] in
   let%lwt headers = session_id () in
   let body = Cohttp_lwt.Body.of_string @@ Yojson.to_string json in
   let%lwt (_, body) = Cohttp_lwt_unix.Client.post ~body ~headers transmission_url in
