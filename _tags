@@ -1,3 +1,0 @@
-<*.*>: package(str), package(xml-light), package(sexplib), package(cohttp-lwt-unix), package(yojson)
-
-<config.ml> or <nene.ml>: package(lwt.ppx)

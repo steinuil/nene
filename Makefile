@@ -1,12 +1,22 @@
-all: nene.native
+PROJECT = nene
+DEPS = ocamlfind jbuilder cohttp-lwt-unix sexplib xml-light yojson
 
-nene.native:
-	ocamlbuild -use-ocamlfind nene.native
+all:
+	jbuilder build -p $(PROJECT)
+.PHONY: all
 
 clean:
-	ocamlbuild -clean
+	jbuilder clean
+.PHONY: clean
+
+install: all
+	jbuilder install -p $(PROJECT)
+.PHONY: install
+
+uninstall:
+	jbuilder uninstall -p $(PROJECT)
+.PHONY: uninstall
 
 install-deps:
-	opam install xml-light sexplib cohttp-lwt-unix yojson
-
-.PHONY: nene.native clean deps
+	opam install $(DEPS)
+.PHONY: install-deps

@@ -1,0 +1,23 @@
+opam-version: "1.2"
+
+version: "0.1.0"
+maintainer: "steenuil.owl@gmail.com"
+authors: ["steenuil"]
+license: ["MIT"]
+
+homepage: "https://github.com/steinuil/nene"
+bug-reports: "https://github.com/steinuil/nene/issues"
+dev-repo: "https://github.com/steinuil/nene"
+
+build: ["jbuilder" "build" "-p" name "-j" jobs]
+install: ["jbuilder" "install" "-p" name]
+remove: ["jbuilder" "uninstall" "-p" name]
+
+depends: [
+  "ocamlfind" {build}
+  "jbuilder" {build}
+  "cohttp-lwt-unix"
+  "sexplib"
+  "xml-light"
+  "yojson"
+]

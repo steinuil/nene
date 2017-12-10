@@ -2,3 +2,5 @@ _build
 *.native
 *.byte
 *.scm
+.merlin
+nene.install
