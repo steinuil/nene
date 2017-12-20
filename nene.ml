@@ -93,9 +93,8 @@ let error_print str =
 let format_show title { number; version } =
   let buf = Buffer.create 16 in
   Printf.bprintf buf "%s %d" title number;
-  if version <> 1 then begin
-    Printf.bprintf buf "v%d" version
-  end;
+  if version <> 1 then
+    Printf.bprintf buf "v%d" version;
   (*Buffer.add_string buf "\x1b[0m";*)
   Buffer.contents buf
 

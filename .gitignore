@@ -4,3 +4,4 @@ _build
 *.scm
 .merlin
 nene.install
+jbuild-workspace

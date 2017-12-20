@@ -14,4 +14,4 @@ val get_new_episodes : callback : (url * episode -> unit Lwt.t) -> Str.regexp ->
   (** Loop over a list of torrents and return the updated list of
       seen episodes, running a callback on their links. *)
 
-val format_show : title -> episode -> string
+val format_show : string -> episode -> string
