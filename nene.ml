@@ -1,9 +1,10 @@
 open Types
-open Lwt.Infix
 
 
-(* *)
-let torrent_of_item_attrs attrs =
+exception Invalid_feed
+
+
+let get_torrent_info attrs =
   let rec loop =
     let open Xml in function
     | _, (Some filename, Some link) ->
@@ -15,109 +16,120 @@ let torrent_of_item_attrs attrs =
     | _ :: rest, x ->
         loop (rest, x)
     | [], _ ->
-        failwith "no item title or link"
+        raise Invalid_feed
   in loop (attrs, (None, None))
 
 
-let torrent_of_item =
-  let open Xml in function
-  | Element ("item", _, children) ->
-      torrent_of_item_attrs children
-  | _ -> failwith "not an item node"
-
-
 let torrents_of_rss_doc doc =
-  let filter_items acc item =
-    try torrent_of_item item :: acc with
-    | Failure _ -> acc in
   let open Xml in
+  let filter_items acc = function
+    | Element ("item", _, children) ->
+        get_torrent_info children :: acc
+    | _ ->
+        acc
+  in
   match parse_string doc with
   | Element ("rss", _, [Element ("channel", _, children)]) ->
       List.fold_left filter_items [] children
-  | _ -> failwith "not an rss document"
+  | exception Error _ ->
+      raise Invalid_feed
+  | _ ->
+      raise Invalid_feed
 
 
-
-(* *)
-let episode_of_filename regexp filename =
-  let number =
-    Str.replace_first regexp "\\1" filename
-    |> int_of_string in
-  let version =
-    try
-      let v = Str.replace_first regexp "\\2" filename in
-      String.sub v 1 ((String.length v) - 1)
-      |> int_of_string
+let parse_episode_filename regexp filename =
+  try
+    let number = int_of_string @@ Str.replace_first regexp "\\1" filename in
+    let version = try
+      let ver = Str.replace_first regexp "\\2" filename in
+      int_of_string @@ String.sub ver 1 ((String.length ver) - 1)
     with Failure _ -> 1 in
-  { number; version }
+    Some { number; version }
+  with Failure _ ->
+    None
 
 
-(* Folds over a list of torrents,
- * returning the updated seen list
- * and the changes *)
-let new_episodes regexp (seen_eps, diff) { filename; link } =
-  if Str.string_match regexp filename 0 then
-    let { number; version } as ep = episode_of_filename regexp filename in
-    let last_ver =
-      try IntMap.find number seen_eps with
-      | Not_found -> -1 in
-    if version > last_ver then
-      let diff_ep = link, ep in
-      IntMap.add number version seen_eps, diff_ep :: diff
-    else seen_eps, diff
-  else seen_eps, diff
+let is_episode_new seen_eps { number; version } =
+  match IntMap.find_opt number seen_eps with
+  | None          -> true
+  | Some last_ver -> version > last_ver
 
 
-let filter_new_eps seen_shows tracker_shows torrents =
-  tracker_shows |> List.map @@ fun (title, regexp) ->
-    let seen_eps =
-      try List.assoc title seen_shows with
-      | Not_found -> IntMap.empty in
-    let all_eps, diff =
-      let f = new_episodes regexp in
-      List.fold_left f (seen_eps, []) torrents in
-    title, all_eps, diff
+let new_episodes regexp (seen_eps, new_links) { filename; link } =
+  match parse_episode_filename regexp filename with
+  | None -> (seen_eps, new_links)
+  | Some ep ->
+      if is_episode_new seen_eps ep then
+        ( IntMap.add ep.number ep.version seen_eps
+        , (link, ep) :: new_links )
+      else
+        (seen_eps, new_links)
 
 
-let print_show title { number; version } =
-  print_string title;
-  print_char ' ';
-  print_int number;
+let get_new_episodes ~callback regexp seen_eps torrents =
+  let seen, ep_links = List.fold_left (new_episodes regexp) (seen_eps, []) torrents in
+  let%lwt () = Lwt_list.iter_s callback ep_links in
+  Lwt.return seen
+
+
+let count = ref 0
+let total = ref 0
+
+
+let print_status () =
+  Lwt_io.printf "\rProcessed %2d/%d%!" !count !total
+
+
+let log_print action str =
+  let%lwt () = Lwt_io.printlf "\r\x1b[1m* \x1b[32m%s\x1b[0m: %s%!" action str in
+  print_status ()
+
+
+let error_print str =
+  let%lwt () = Lwt_io.printlf "\r\x1b[1;31m[ERROR]\x1b[0m %s%!" str in
+  print_status ()
+
+
+let format_show title { number; version } =
+  let buf = Buffer.create 16 in
+  Printf.bprintf buf "%s %d" title number;
   if version <> 1 then begin
-    print_char ' ';
-    print_int version
+    Printf.bprintf buf "v%d" version
   end;
-  print_newline ()
+  (*Buffer.add_string buf "\x1b[0m";*)
+  Buffer.contents buf
 
 
-let download_show title (link, ep) =
+(* TODO: deal with errors from adding the torrent *)
+let download_ep title (link, { number; version }) =
   let%lwt () = Config.add_torrent link in
-  print_show title ep;
-  Lwt.return_unit
+  log_print "downloaded" (format_show title { number; version })
 
 
-let main () =
+let () = Lwt_main.run begin
   let trackers = Save.load_trackers Config.shows_file in
   let seen = Save.load_seen Config.seen_file in
+  total := List.length trackers;
   let%lwt new_seen = trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
     let%lwt doc = Config.download rss_url in
-    let torrents =
-      try torrents_of_rss_doc doc with
-      | Failure str ->
-          print_endline @@ "error while processing " ^ rss_url ^ ": " ^ str;
-          []
-      | _ ->
-          print_endline @@ "error while processing " ^ rss_url;
-          [] in
-    let new_eps = filter_new_eps seen tracker_shows torrents in
-    new_eps |> Lwt_list.map_s begin fun (title, seen, diff) ->
-      let%lwt () = Lwt_list.iter_s (download_show title) diff in
-      Lwt.return (title, seen)
+    let%lwt torrents =
+      try
+        let t = torrents_of_rss_doc doc in
+        Lwt.return t
+      with Invalid_feed ->
+        let%lwt () = error_print (Printf.sprintf "\x1b[1m%s\x1b[0m returned an invalid document" rss_url) in
+        Lwt.return [] in
+    incr count;
+    let%lwt () = print_status () in
+    tracker_shows |> Lwt_list.map_s begin fun (title, regexp) ->
+      let seen_eps =
+        try List.assoc title seen
+        with Not_found -> IntMap.empty in
+      let%lwt seen_eps =
+        get_new_episodes ~callback:(download_ep title) regexp seen_eps torrents in
+      Lwt.return (title, seen_eps)
     end
   end in
   Save.save_seen Config.seen_file (List.flatten new_seen);
-  Lwt.return_unit
-
-
-let () =
-  Lwt_main.run @@ main ()
+  Lwt_io.printf "\r\x1b[K%!"
+end

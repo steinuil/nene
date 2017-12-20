@@ -2,12 +2,20 @@
 `nene` is a small utility to automate downloading torrents of series over RSS.
 It is much faster than alternatives like [flexget](https://flexget.com/), due to being written in a compiled language and running several tasks concurrently.
 
+`nene` is not done yet. It's a little rough around the edges and it's missing some features, but I'm using it regularly and it works well enough.
+
 ## Building
 `nene` requires **OCaml** and **opam** to be built, and **curl** and **transmission-daemon** to be used. Support for more downloaders and torrent clients will be configurable in a separate config file at a later date.
 
 To install the dependencies and build:
 ```
 make install-deps all
+```
+
+## Installing
+To install in your opam bin directory (typically `$HOME/.opam/<current switch>/bin`):
+```
+make install
 ```
 
 ## Usage
@@ -67,11 +75,11 @@ Seeing as most filenames have a few recurring parts, this could be replaced by s
 ## Known issues
 - Some things are not configurable at runtime.
 - It depends on curl for downloading shows. For some reason my version of Cohttp doesn't work with SSL, so I'll try to fix that.
-- It doesn't check whether adding the torrent to Transmission has succeeded.
-- There might be a few uncaught exceptions that should have been caught.
 - Generally, the program should work by having a tree of transactions that abort gracefully. Right now it doesn't work nearly as consistently.
-- Should be able to specify the number of threads that can be running at the same time
+- Some exceptions are uncaught and don't output a nice error message.
+- There's no dumb terminal mode.
 
 ## Wishlist
-- More colorful output
 - A goddamn config file
+- Specify the maximum number of concurrent threads
+- Chase shows down the previous pages to find missing episodes

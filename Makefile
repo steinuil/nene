@@ -19,4 +19,5 @@ uninstall:
 
 install-deps:
 	opam install $(DEPS)
+# opam install --deps-only .
 .PHONY: install-deps

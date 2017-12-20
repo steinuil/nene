@@ -1,4 +1,3 @@
-open Types
 open Lwt.Infix
 
 
@@ -118,6 +117,11 @@ let session_id () =
       Lwt.return session_id_hdr
 
 
+let resp_success = function
+  | ("result", `String "success") -> true
+  | _ -> false
+
+
 let add_torrent url =
   let dl_dir = match flags.download_dir with
     | Some d -> [ "download-dir", `String d ]
@@ -129,4 +133,12 @@ let add_torrent url =
   let%lwt headers = session_id () in
   let body = Cohttp_lwt.Body.of_string @@ Yojson.to_string json in
   let%lwt (_, body) = Cohttp_lwt_unix.Client.post ~body ~headers transmission_url in
-  Cohttp_lwt.Body.to_string body >|= print_endline
+  let%lwt resp = Cohttp_lwt.Body.to_string body in
+  match Yojson.Basic.from_string resp with
+  | `Assoc assocs ->
+      if List.exists resp_success assocs then
+        Lwt.return ()
+      else
+        [%lwt failwith "Couldn't add the torrent to transmission"]
+  | _ ->
+      [%lwt failwith "Couldn't add the torrent to transmission"]
