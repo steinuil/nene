@@ -81,5 +81,4 @@ Seeing as most filenames have a few recurring parts, this could be replaced by s
 
 ## Wishlist
 - A goddamn config file
-- Specify the maximum number of concurrent threads
 - Chase shows down the previous pages to find missing episodes

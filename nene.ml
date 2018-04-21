@@ -33,6 +33,8 @@ let torrents_of_rss_doc doc =
       List.fold_left filter_items [] children
   | exception Error _ ->
       raise Invalid_feed
+  | exception Dtd.Parse_error _ ->
+      raise Invalid_feed
   | _ ->
       raise Invalid_feed
 
@@ -105,11 +107,29 @@ let download_ep title (link, { number; version }) =
   log_print "downloaded" (format_show title { number; version })
 
 
+let die_fatal str =
+  Printf.printf "\r\x1b[1;31mFatal error\x1b[0m: %s\n" str;
+  exit 1
+
+
 let () = Lwt_main.run begin
-  let trackers = Save.load_trackers Config.shows_file in
+  (* Load config files *)
+  let trackers =
+    try
+      Save.load_trackers Config.shows_file
+    with
+    | Sys_error err -> die_fatal err
+    | Failure _ -> die_fatal (Config.shows_file ^ ": Unbalanced left parenthesis")
+    | Sexplib.Sexp.Parse_error { err_msg; _ } ->
+        die_fatal (Printf.sprintf "%s: %s" Config.shows_file err_msg)
+    | Sexplib.Conv.Of_sexp_error (Sexplib.Sexp.Annotated.Conv_exn (loc, Failure err), _) ->
+        die_fatal (Printf.sprintf "%s: %s " loc err)
+  in
   let seen = Save.load_seen Config.seen_file in
   total := List.length trackers;
+
   let%lwt new_seen = trackers |> Lwt_list.map_p begin fun (rss_url, tracker_shows) ->
+    (* Download and parse RSS documents *)
     let%lwt doc = Config.download rss_url in
     let%lwt torrents =
       try
@@ -120,6 +140,8 @@ let () = Lwt_main.run begin
         Lwt.return [] in
     incr count;
     let%lwt () = print_status () in
+
+    (* Determine the new episodes and download them *)
     tracker_shows |> Lwt_list.map_s begin fun (title, regexp) ->
       let seen_eps =
         try List.assoc title seen

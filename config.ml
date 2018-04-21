@@ -139,6 +139,6 @@ let add_torrent url =
       if List.exists resp_success assocs then
         Lwt.return ()
       else
-        [%lwt failwith "Couldn't add the torrent to transmission"]
+        Lwt.fail (Failure "Couldn't add the torrent to transmission")
   | _ ->
-      [%lwt failwith "Couldn't add the torrent to transmission"]
+      Lwt.fail (Failure "Couldn't add the torrent to transmission")
