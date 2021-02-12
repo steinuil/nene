@@ -1,7 +1,0 @@
-(jbuild_version 1)
-
-(executable
- ((name nene)
-  (public_name nene)
-  (libraries (str xml-light sexplib cohttp-lwt-unix yojson))
-  (preprocess (pps (lwt.ppx)))))

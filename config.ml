@@ -1,6 +1,3 @@
-open Lwt.Infix
-
-
 let with_default def = function
   | Some x -> x
   | None -> def

@@ -1,0 +1,7 @@
+(executable
+ (modes byte exe)
+ (name nene)
+ (public_name nene)
+ (libraries str xml-light sexplib cohttp-lwt-unix yojson)
+ (preprocess
+  (pps lwt_ppx)))

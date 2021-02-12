@@ -9,13 +9,13 @@ homepage: "https://github.com/steinuil/nene"
 bug-reports: "https://github.com/steinuil/nene/issues"
 dev-repo: "https://github.com/steinuil/nene"
 
-build: ["jbuilder" "build" "-p" name "-j" jobs]
-install: ["jbuilder" "install" "-p" name]
-remove: ["jbuilder" "uninstall" "-p" name]
+build: ["dune" "build" "-p" name "-j" jobs]
+install: ["dune" "install" "-p" name]
+remove: ["dune" "uninstall" "-p" name]
 
 depends: [
   "ocamlfind" {build}
-  "jbuilder" {build}
+  "dune" {build & >= "1.0"}
   "cohttp-lwt-unix"
   "sexplib"
   "xml-light"
