@@ -1,7 +1,4 @@
 _build
-*.native
-*.byte
+*.opam
+
 *.scm
-.merlin
-nene.install
-jbuild-workspace
