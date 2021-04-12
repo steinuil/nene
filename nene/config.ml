@@ -1,68 +1,3 @@
-(* let with_default def = function Some x -> x | None -> def
-
-   type flags = {
-   download_dir : string option;
-   shows_file : string option;
-   transmission_host : string option;
-   transmission_port : int option;
-   }
-
-   let usage chan =
-   let cmd_name = Sys.argv.(0) in
-   let print = output_string chan in
-   print "Usage: ";
-   print cmd_name;
-   print " [-h] [-download-dir <path>] [-shows <path>]\n";
-   print (String.make (8 + String.length cmd_name) ' ');
-   print "[-transmission-host <host>] [-transmission-port <port>]\n" *)
-
-(* 
-let flags =
-  let args = List.tl @@ Array.to_list Sys.argv in
-  let rec loop flags acc =
-    match (flags, acc) with
-    | [], acc -> acc
-    | "-download-dir" :: path :: rest, { download_dir = None; _ } ->
-      loop rest { acc with download_dir = Some path }
-    | "-shows" :: path :: rest, { shows_file = None; _ } ->
-      loop rest { acc with shows_file = Some path }
-    | "-transmission-host" :: host :: rest, { transmission_host = None; _ } ->
-      loop rest { acc with transmission_host = Some host }
-    | "-transmission-port" :: port :: rest, { transmission_port = None; _ } ->
-      let port = int_of_string port in
-      loop rest { acc with transmission_port = Some port }
-    | "-h" :: _, _ | "-help" :: _, _ ->
-      usage stdout;
-      exit 0
-    | opt :: _, _ -> failwith ("Unrecognized option: " ^ opt)
-  in
-  loop args
-    {
-      download_dir = None;
-      shows_file = None;
-      transmission_host = None;
-      transmission_port = None;
-    }
-
-let home_dir = Sys.getenv "HOME" *)
-
-(* let nene_dir =
-   let config_dir =
-    match Sys.getenv_opt "XDG_CONFIG_HOME" with
-    | Some dir -> dir
-    | None -> Filename.concat home_dir ".config"
-   in
-   let nene_dir = Filename.concat config_dir "nene" in
-   if not @@ Sys.file_exists nene_dir then Unix.mkdir nene_dir 0o700;
-   nene_dir *)
-(* 
-let in_config_dir f = Filename.concat nene_dir f *)
-
-(* let seen_file = in_config_dir "seen.scm" *)
-
-(* let shows_file =
-   match flags.shows_file with Some f -> f | None -> in_config_dir "shows.scm" *)
-
 let download url =
   let cmd = ("curl", [| "nene-fetch"; url |]) in
   try%lwt Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd
@@ -125,8 +60,143 @@ let add_torrent url =
   | _ -> Lwt.fail (Failure "Couldn't add the torrent to transmission")
 *)
 
+type torrent = { title : string; link : string }
+
 type backend =
   | Directory of string
-  | Transmission of { host : Uri.t; path : string option }
+  | Transmission of { host : Uri.t; download_dir : string option }
 
-module Config = struct end
+type show_pattern = { name : string; pattern : Pattern.t }
+
+type tracker = { rss_url : Uri.t; shows : show_pattern list }
+
+type settings = { backend : backend; trackers : tracker list }
+
+module File = struct
+  open Patche.Combinators
+  open Patche.Combinators.Infix
+  open Patche.Json
+
+  let regexp =
+    assoc
+      (map3
+         (fun pattern episode_idx version_idx ->
+           Pattern.compile_perl_regexp pattern ~episode_idx ~version_idx)
+         (required "pattern" ->= string)
+         (required "episode" ->= int)
+         (required "version" ->= int))
+
+  let show =
+    assoc
+      (map2
+         (fun name pattern -> { name; pattern })
+         (required "name" ->= string)
+         (or_
+            (required "regexp" ->= regexp)
+            ( required "pattern" ->= string
+            |> map_option ~none:(fun _ -> `Json_error "a") Pattern.compile )))
+
+  let transmission_backend =
+    assoc
+      (map2
+         (fun host download_dir ->
+           Transmission { host = Uri.of_string host; download_dir })
+         (required "host" ->= string)
+         (let& ddir = optional "download_dir" in
+          match ddir with
+          | Some (`String s) -> return (Some s)
+          | Some _ -> error (`Json_error "a")
+          | None -> return None))
+
+  let backend =
+    assoc
+      ( (required "directory" ->= string ->> fun dir -> Directory dir)
+      <|> required "transmission" ->= transmission_backend )
+
+  let tracker =
+    assoc
+      (map2
+         (fun url shows -> { rss_url = Uri.of_string url; shows })
+         (required "url" ->= string)
+         (required "shows" ->= list_v show))
+
+  let config =
+    assoc
+      (map2
+         (fun backend trackers -> { backend; trackers })
+         (required "backend" ->= backend)
+         (required "trackers" ->= list_v tracker))
+
+  let parse_json_exn json = config json |> Result.get_ok |> Option.some
+
+  let parse_string str =
+    try Yojson.Safe.from_string str |> parse_json_exn with _ -> None
+
+  let parse_file str =
+    try Yojson.Safe.from_file str |> parse_json_exn with _ -> None
+
+  let%test _ =
+    parse_string
+      {|
+    {
+      "backend": {
+        "transmission": {
+          "host": "https://nyaa.si"
+        }
+      },
+      "trackers": [
+        {
+          "url": "https://nyaa.si",
+          "shows": [
+            {
+              "name": "Godzilla: Singular Point",
+              "regexp": {
+                "pattern": "[MoyaiSubs] Godzilla Singular Point - (\\d+) (\\[v(\\d+)\\]) .*\\.mkv",
+                "episode": 1,
+                "version": 3
+              }
+            },
+            {
+              "name": "Super Cub",
+              "pattern": "[SubsPlease] Super Cub - <episode> (1080p) [**].mkv"
+            }
+          ]
+        }
+      ]
+    }
+    |}
+    |> Option.get
+    = {
+        backend =
+          Transmission
+            { host = Uri.of_string "https://nyaa.si"; download_dir = None };
+        trackers =
+          [
+            {
+              rss_url = Uri.of_string "https://nyaa.si";
+              shows =
+                [
+                  {
+                    name = "Godzilla: Singular Point";
+                    pattern =
+                      {
+                        regexp =
+                          Re.Perl.compile_pat
+                            "[MoyaiSubs] Godzilla Singular Point - (\\d+) \
+                             (\\[v(\\d+)\\]) .*\\.mkv";
+                        episode = 1;
+                        version = 3;
+                      };
+                  };
+                  {
+                    name = "Super Cub";
+                    pattern =
+                      Pattern.compile
+                        "[SubsPlease] Super Cub - <episode> (1080p) [**].mkv"
+                      |> Option.get;
+                  };
+                ];
+            };
+          ];
+      }
+end

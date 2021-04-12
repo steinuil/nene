@@ -1,6 +1,5 @@
-(executable
- (name nene)
- (public_name nene)
+(library
+ (name nene_lib)
  (libraries
   str
   xml-light
@@ -8,13 +7,15 @@
   cohttp-lwt-unix
   yojson
   directories
-  cmdliner
   fmt
   fmt.cli
   fmt.tty
   logs
   logs.fmt
   logs.cli
-  patche)
+  patche
+  re
+  lwt-pipe)
+ (inline_tests)
  (preprocess
-  (pps lwt_ppx)))
+  (pps ppx_inline_test lwt_ppx)))

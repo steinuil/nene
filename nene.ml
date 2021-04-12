@@ -1,3 +1,5 @@
+open Nene_lib
+
 let ( let* ) = Result.bind
 
 let ( let+ ) = Option.bind
@@ -13,7 +15,7 @@ let default_seen_file =
   in
   Some (xdg_config_dir / "nene" / "shows.scm")
 
-let nene config_file seen_file backend log_level style_renderer jobs =
+let nene config_file seen_file log_level style_renderer jobs =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level log_level;
   Logs.set_reporter (Logs_fmt.reporter ());
@@ -30,7 +32,12 @@ let nene config_file seen_file backend log_level style_renderer jobs =
     if jobs > 0 then Ok ()
     else Error (`Msg "Specify a number of jobs higher than 0.")
   in
-  Lwt_main.run (Core.run ~shows_file:config_file ~seen_file ~jobs ~backend);
+  let* Config.{ backend; trackers } =
+    Config.File.parse_file config_file
+    |> Option.to_result
+         ~none:(`Msg "An error occurred while reading the config file.")
+  in
+  Lwt_main.run (Core.run ~seen_file ~jobs ~backend ~trackers);
   Ok ()
 
 open Cmdliner
@@ -45,20 +52,20 @@ let seen_file =
   in
   Arg.(value & opt (some string) None & info [ "seen" ] ~docv:"FILE" ~doc)
 
-type backend = Transmission | Directory
+(* type backend = Transmission | Directory
 
 let backend =
   let backend = [ ("transmission", Transmission); ("dir", Directory) ] in
   let doc = "Which backend to use for saving the torrent files." in
   let docv = "transmission|dir" in
-  Arg.(value & opt (enum backend) Directory & info [ "backend" ] ~docv ~doc)
+  Arg.(value & opt (enum backend) Directory & info [ "backend" ] ~docv ~doc) *)
 
 let jobs = Arg.(value & opt int 4 & info [ "j"; "jobs" ] ~docv:"COUNT")
 
 let nene_t =
   Term.(
     term_result
-      ( const nene $ config_file $ seen_file $ backend $ Logs_cli.level ()
+      ( const nene $ config_file $ seen_file $ Logs_cli.level ()
       $ Fmt_cli.style_renderer () $ jobs ))
 
 let () = Term.eval (nene_t, Term.info "nene") |> Term.exit

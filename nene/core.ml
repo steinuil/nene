@@ -41,22 +41,22 @@ let parse_episode_filename regexp filename =
     Some { number; version }
   with Failure _ -> None
 
-let is_episode_new seen_eps { number; version } =
+let is_episode_new seen_eps Episode_num.{ number; version } =
   match IntMap.find_opt number seen_eps with
   | None -> true
   | Some last_ver -> version > last_ver
 
-let new_episodes regexp (seen_eps, new_links) { filename; link } =
-  match parse_episode_filename regexp filename with
+let new_episodes pattern (seen_eps, new_links) { filename; link } =
+  match Pattern.parse_episode pattern filename with
   | None -> (seen_eps, new_links)
   | Some ep ->
       if is_episode_new seen_eps ep then
         (IntMap.add ep.number ep.version seen_eps, (link, ep) :: new_links)
       else (seen_eps, new_links)
 
-let get_new_episodes ~callback regexp seen_eps torrents =
+let get_new_episodes ~callback pattern seen_eps torrents =
   let seen, ep_links =
-    List.fold_left (new_episodes regexp) (seen_eps, []) torrents
+    List.fold_left (new_episodes pattern) (seen_eps, []) torrents
   in
   let%lwt () = Lwt_list.iter_s callback ep_links in
   Lwt.return seen
@@ -91,24 +91,24 @@ let die_fatal str =
   Printf.printf "\r\x1b[1;31mFatal error\x1b[0m: %s\n" str;
   exit 1
 
-let run ~shows_file ~seen_file ~jobs:_ ~backend:_ =
-  let trackers =
-    try Save.load_trackers shows_file with
-    | Sys_error err -> die_fatal err
-    | Failure _ -> die_fatal (shows_file ^ ": Unbalanced left parenthesis")
-    | Sexplib.Sexp.Parse_error { err_msg; _ } ->
-        die_fatal (Printf.sprintf "%s: %s" shows_file err_msg)
-    | Sexplib.Conv.Of_sexp_error
-        (Sexplib.Sexp.Annotated.Conv_exn (loc, Failure err), _) ->
-        die_fatal (Printf.sprintf "%s: %s " loc err)
-  in
+let run ~(trackers : Config.tracker list) ~seen_file ~jobs:_ ~backend:_ =
+  (* let trackers =
+       try Save.load_trackers shows_file with
+       | Sys_error err -> die_fatal err
+       | Failure _ -> die_fatal (shows_file ^ ": Unbalanced left parenthesis")
+       | Sexplib.Sexp.Parse_error { err_msg; _ } ->
+           die_fatal (Printf.sprintf "%s: %s" shows_file err_msg)
+       | Sexplib.Conv.Of_sexp_error
+           (Sexplib.Sexp.Annotated.Conv_exn (loc, Failure err), _) ->
+           die_fatal (Printf.sprintf "%s: %s " loc err)
+     in *)
   let seen = Save.load_seen seen_file in
   total := List.length trackers;
   let%lwt new_seen =
     trackers
-    |> Lwt_list.map_p (fun (rss_url, tracker_shows) ->
+    |> Lwt_list.map_p (fun Config.{ rss_url; shows } ->
            (* Download and parse RSS documents *)
-           let%lwt doc = Config.download rss_url in
+           let%lwt doc = Config.download (Uri.to_string rss_url) in
            let%lwt torrents =
              try
                let t = torrents_of_rss_doc doc in
@@ -117,7 +117,8 @@ let run ~shows_file ~seen_file ~jobs:_ ~backend:_ =
                let%lwt () =
                  error_print
                    (Printf.sprintf
-                      "\x1b[1m%s\x1b[0m returned an invalid document" rss_url)
+                      "\x1b[1m%s\x1b[0m returned an invalid document"
+                      (Uri.to_string rss_url))
                in
                Lwt.return []
            in
@@ -125,19 +126,19 @@ let run ~shows_file ~seen_file ~jobs:_ ~backend:_ =
            let%lwt () = print_status () in
 
            (* Determine the new episodes and download them *)
-           tracker_shows
-           |> Lwt_list.map_s (fun (title, regexp) ->
+           shows
+           |> Lwt_list.map_s (fun Config.{ name; pattern } ->
                   let seen_eps =
-                    try List.assoc title seen with Not_found -> IntMap.empty
+                    try List.assoc name seen with Not_found -> IntMap.empty
                   in
                   let%lwt seen_eps =
                     get_new_episodes
                       ~callback:(fun (url, _) ->
                         print_endline url;
                         Lwt.return ())
-                      regexp seen_eps torrents
+                      pattern seen_eps torrents
                   in
-                  Lwt.return (title, seen_eps)))
+                  Lwt.return (name, seen_eps)))
   in
   Save.save_seen seen_file (List.flatten new_seen);
   Lwt_io.printf "\r\x1b[K%!"
