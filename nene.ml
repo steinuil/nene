@@ -28,6 +28,7 @@ let nene config_file seen_file log_level style_renderer jobs =
              "Coulnd't determine the config dir, you should explicitly specify \
               the seen file with the --seen option.")
   in
+  let seen = Episode.Seen.read_file seen_file in
   let* () =
     if jobs > 0 then Ok ()
     else Error (`Msg "Specify a number of jobs higher than 0.")
@@ -37,7 +38,8 @@ let nene config_file seen_file log_level style_renderer jobs =
     |> Option.to_result
          ~none:(`Msg "An error occurred while reading the config file.")
   in
-  Lwt_main.run (Core.run ~seen_file ~jobs ~backend ~trackers);
+  let seen = Lwt_main.run (Core.run ~seen ~jobs ~backend ~trackers) in
+  Episode.Seen.write_file seen_file seen;
   Ok ()
 
 open Cmdliner

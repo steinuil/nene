@@ -77,20 +77,19 @@ let parse_episode { regexp; episode; version } input =
     let* version = group_get_opt groups version in
     int_of_string_opt version
   in
-  Some
-    Episode_num.{ number = episode; version = Option.value version ~default:1 }
+  Some Episode.{ number = episode; version = Option.value version ~default:1 }
 
 let%test "parse_episode with both episode and version" =
   parse_episode
     { regexp = Re.compile episode_regexp; episode = 1; version = 2 }
     "12v2"
-  = Some Episode_num.{ number = 12; version = 2 }
+  = Some Episode.{ number = 12; version = 2 }
 
 let%test "parse_episode without version" =
   parse_episode
     { regexp = Re.compile episode_regexp; episode = 1; version = 2 }
     "12"
-  = Some Episode_num.{ number = 12; version = 1 }
+  = Some Episode.{ number = 12; version = 1 }
 
 let%test "parse episode returns None on fail" =
   parse_episode
@@ -108,7 +107,7 @@ let%test "real episode" =
       version = 3;
     }
     "[MoyaiSubs] Godzilla Singular Point - 02 (Web 1080p AAC) [CB0B7D8F].mkv"
-  = Some Episode_num.{ number = 2; version = 1 }
+  = Some Episode.{ number = 2; version = 1 }
 
 let compile input =
   let* before, after = around "<episode>" input in
@@ -120,7 +119,7 @@ let%test "compile" =
   parse_episode
     (Option.get (compile "abcd<episode>tfw**as"))
     "abcd1v2tfwasdasdas"
-  = Some Episode_num.{ number = 1; version = 2 }
+  = Some Episode.{ number = 1; version = 2 }
 
 let%test "compile" =
   let pattern =
@@ -129,7 +128,7 @@ let%test "compile" =
   parse_episode
     (Option.get (compile pattern))
     "[MoyaiSubs] Godzilla Singular Point - 03 (Web 1080p AAC) [CB0B7D8F].mkv"
-  = Some Episode_num.{ number = 3; version = 1 }
+  = Some Episode.{ number = 3; version = 1 }
 
 let compile_perl_regexp str ~episode_idx ~version_idx =
   let regexp = Re.Perl.compile_pat str in
