@@ -20,9 +20,9 @@ let rss_channel = function
 let rss_item = function El ("item", children) -> Some children | _ -> None
 
 let rec item_to_torrent = function
-  | _, (Some title, Some link) -> Config.{ title; link }
-  | El ("title", [ Data title ]) :: rest, (_, link) ->
-      item_to_torrent (rest, (Some title, link))
+  | _, (Some filename, Some link) -> Config.{ filename; link }
+  | El ("title", [ Data filename ]) :: rest, (_, link) ->
+      item_to_torrent (rest, (Some filename, link))
   | El ("link", [ Data link ]) :: rest, (title, _) ->
       item_to_torrent (rest, (title, Some link))
   | _ :: rest, info -> item_to_torrent (rest, info)

@@ -1,8 +1,3 @@
-let download url =
-  let cmd = ("curl", [| "nene-fetch"; url |]) in
-  try%lwt Lwt_process.pread ~timeout:15. ~stderr:`Dev_null ~env:[||] cmd
-  with _ -> Lwt.return ""
-
 (*
 let session_id_mutex = Lwt_mutex.create ()
 
@@ -60,7 +55,7 @@ let add_torrent url =
   | _ -> Lwt.fail (Failure "Couldn't add the torrent to transmission")
 *)
 
-type torrent = { title : string; link : string }
+type torrent = { filename : string; link : string }
 
 type backend =
   | Directory of string
@@ -182,10 +177,9 @@ module File = struct
                       {
                         regexp =
                           Re.Perl.compile_pat
-                            "[MoyaiSubs] Godzilla Singular Point - (\\d+) \
-                             (\\[v(\\d+)\\]) .*\\.mkv";
-                        episode = 1;
-                        version = 3;
+                            {|[MoyaiSubs] Godzilla Singular Point - (\d+) (\[v(\d+)\]) .*\.mkv|};
+                        episode_idx = 1;
+                        version_idx = 3;
                       };
                   };
                   {

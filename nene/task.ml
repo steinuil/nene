@@ -13,5 +13,5 @@ let fetch_rss ~fetch ~seen Config.{ rss_url; shows } =
 let download_torrent ~backend (t : Config.torrent) ep_n =
   try%lwt
     let* () = backend t in
-    Lwt.return (Some (t.title, ep_n))
+    Lwt.return (Some (t.filename, ep_n))
   with _ -> Lwt.return None

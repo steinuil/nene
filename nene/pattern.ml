@@ -1,4 +1,4 @@
-type t = { regexp : Re.re; episode : int; version : int }
+type t = { regexp : Re.re; episode_idx : int; version_idx : int }
 
 let ( let* ) = Option.bind
 
@@ -69,42 +69,42 @@ let episode_regexp =
 let group_get_opt groups n =
   if Re.Group.test groups n then Some (Re.Group.get groups n) else None
 
-let parse_episode { regexp; episode; version } input =
+let parse_filename { regexp; episode_idx; version_idx } input =
   let* groups = Re.exec_opt regexp input in
-  let* episode = group_get_opt groups episode in
+  let* episode = group_get_opt groups episode_idx in
   let* episode = int_of_string_opt episode in
   let version =
-    let* version = group_get_opt groups version in
+    let* version = group_get_opt groups version_idx in
     int_of_string_opt version
   in
   Some Episode.{ number = episode; version = Option.value version ~default:1 }
 
 let%test "parse_episode with both episode and version" =
-  parse_episode
-    { regexp = Re.compile episode_regexp; episode = 1; version = 2 }
+  parse_filename
+    { regexp = Re.compile episode_regexp; episode_idx = 1; version_idx = 2 }
     "12v2"
   = Some Episode.{ number = 12; version = 2 }
 
 let%test "parse_episode without version" =
-  parse_episode
-    { regexp = Re.compile episode_regexp; episode = 1; version = 2 }
+  parse_filename
+    { regexp = Re.compile episode_regexp; episode_idx = 1; version_idx = 2 }
     "12"
   = Some Episode.{ number = 12; version = 1 }
 
 let%test "parse episode returns None on fail" =
-  parse_episode
-    { regexp = Re.compile episode_regexp; episode = 1; version = 2 }
+  parse_filename
+    { regexp = Re.compile episode_regexp; episode_idx = 1; version_idx = 2 }
     "abcv"
   = None
 
 let%test "real episode" =
-  parse_episode
+  parse_filename
     {
       regexp =
         Re.Perl.compile_pat
           {|\[MoyaiSubs\] Godzilla Singular Point - (\d+) (\[v(\d+)\])?|};
-      episode = 1;
-      version = 3;
+      episode_idx = 1;
+      version_idx = 3;
     }
     "[MoyaiSubs] Godzilla Singular Point - 02 (Web 1080p AAC) [CB0B7D8F].mkv"
   = Some Episode.{ number = 2; version = 1 }
@@ -113,10 +113,10 @@ let compile input =
   let* before, after = around "<episode>" input in
   let regexp = Glob.(of_string before @ (episode_regexp :: of_string after)) in
   let regexp = Re.(seq ((bos :: regexp) @ [ eos ]) |> compile) in
-  Some { regexp; episode = 1; version = 2 }
+  Some { regexp; episode_idx = 1; version_idx = 2 }
 
 let%test "compile" =
-  parse_episode
+  parse_filename
     (Option.get (compile "abcd<episode>tfw**as"))
     "abcd1v2tfwasdasdas"
   = Some Episode.{ number = 1; version = 2 }
@@ -125,11 +125,11 @@ let%test "compile" =
   let pattern =
     "[MoyaiSubs] Godzilla Singular Point - <episode> (Web 1080p AAC) [**].mkv"
   in
-  parse_episode
+  parse_filename
     (Option.get (compile pattern))
     "[MoyaiSubs] Godzilla Singular Point - 03 (Web 1080p AAC) [CB0B7D8F].mkv"
   = Some Episode.{ number = 3; version = 1 }
 
 let compile_perl_regexp str ~episode_idx ~version_idx =
   let regexp = Re.Perl.compile_pat str in
-  { regexp; episode = episode_idx; version = version_idx }
+  { regexp; episode_idx; version_idx }
