@@ -5,8 +5,8 @@ let is_episode_new seen_eps Episode.{ number; version } =
   | None -> true
   | Some last_ver -> version > last_ver
 
-let new_episodes pattern (seen_eps, new_links) Config.{ title; link } =
-  match Pattern.parse_episode pattern title with
+let new_episodes pattern (seen_eps, new_links) Config.{ filename; link } =
+  match Pattern.parse_filename pattern filename with
   | None -> (seen_eps, new_links)
   | Some ep ->
       if is_episode_new seen_eps ep then
@@ -53,40 +53,40 @@ let die_fatal str =
 let run ~trackers ~seen ~jobs:_ ~backend:_ =
   total := List.length trackers;
   let%lwt new_seen =
-    trackers
-    |> Lwt_list.map_p (fun Config.{ rss_url; shows } ->
-           (* Download and parse RSS documents *)
-           let%lwt doc = Config.download (Uri.to_string rss_url) in
-           let%lwt torrents =
-             match Rss.torrents_from_string doc with
-             | Some t -> Lwt.return t
-             | None ->
-                 let%lwt () =
-                   error_print
-                     (Printf.sprintf
-                        "\x1b[1m%s\x1b[0m returned an invalid document"
-                        (Uri.to_string rss_url))
-                 in
-                 Lwt.return []
-           in
-           incr count;
-           let%lwt () = print_status () in
+    Lwt_list.map_p
+      (fun Config.{ rss_url; shows } ->
+        (* Download and parse RSS documents *)
+        let%lwt doc = Backend.download rss_url in
+        let%lwt torrents =
+          match Rss.torrents_from_string doc with
+          | Some t -> Lwt.return t
+          | None ->
+              let%lwt () =
+                error_print
+                  (Printf.sprintf
+                     "\x1b[1m%s\x1b[0m returned an invalid document"
+                     (Uri.to_string rss_url))
+              in
+              Lwt.return []
+        in
+        incr count;
+        let%lwt () = print_status () in
 
-           (* Determine the new episodes and download them *)
-           shows
-           |> Lwt_list.map_s (fun Config.{ name; pattern } ->
-                  let seen_eps =
-                    try List.assoc name seen
-                    with Not_found -> Episode.Seen.empty
-                  in
-                  let%lwt seen_eps =
-                    get_new_episodes
-                      ~callback:(fun (url, _) ->
-                        print_endline url;
-                        Lwt.return ())
-                      pattern seen_eps torrents
-                  in
-                  Lwt.return (name, seen_eps)))
+        (* Determine the new episodes and download them *)
+        shows
+        |> Lwt_list.map_s (fun Config.{ name; pattern } ->
+               let seen_eps =
+                 try List.assoc name seen with Not_found -> Episode.Seen.empty
+               in
+               let%lwt seen_eps =
+                 get_new_episodes
+                   ~callback:(fun (url, _) ->
+                     print_endline url;
+                     Lwt.return ())
+                   pattern seen_eps torrents
+               in
+               Lwt.return (name, seen_eps)))
+      trackers
   in
   Lwt_io.printf "\r\x1b[K%!";%lwt
   Lwt.return (List.flatten new_seen)
