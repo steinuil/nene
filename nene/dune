@@ -1,7 +1,7 @@
 (library
  (name nene_lib)
  (public_name nene.lib)
- (libraries sexplib cohttp-lwt-unix lwt_ssl yojson nene.patche re)
+ (libraries sexplib cohttp-lwt-unix lwt_ssl yojson patche re)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test lwt_ppx)))
