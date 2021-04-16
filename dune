@@ -1,4 +1,4 @@
 (executable
  (name nene)
  (public_name nene)
- (libraries nene_lib cmdliner))
+ (libraries nene.lib nene.patche cmdliner))

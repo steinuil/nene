@@ -1,5 +1,7 @@
 (library
  (name patche)
+ (public_name nene.patche)
+ (package nene)
  (libraries xmlm yojson)
  (inline_tests)
  (preprocess
