@@ -1,6 +1,4 @@
 (executable
  (name nene)
  (public_name nene)
- (libraries nene_lib cmdliner fmt fmt.cli fmt.tty logs logs.fmt logs.cli)
- (preprocess
-  (pps lwt_ppx)))
+ (libraries nene_lib cmdliner))

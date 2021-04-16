@@ -1,61 +1,7 @@
-(*
-let session_id_mutex = Lwt_mutex.create ()
-
-let transmission_url =
-  let port = with_default 9091 flags.transmission_port in
-  let host = with_default "127.0.0.1" flags.transmission_host in
-  Uri.make ~scheme:"http" ~port ~host ~path:"/transmission/rpc" ()
-
-let session_id' : Cohttp.Header.t option ref = ref None
-
-let session_id () =
-  let%lwt () = Lwt_mutex.lock session_id_mutex in
-  match !session_id' with
-  | Some headers ->
-    Lwt_mutex.unlock session_id_mutex;
-    Lwt.return headers
-  | None ->
-    let%lwt resp, _ = Cohttp_lwt_unix.Client.get transmission_url in
-    let headers = Cohttp_lwt.Response.headers resp in
-    let header_name = "X-Transmission-Session-Id" in
-    let session_id_hdr =
-      match Cohttp.Header.get headers header_name with
-      | Some id -> Cohttp.Header.init_with header_name id
-      | None -> Cohttp.Header.init ()
-    in
-    session_id' := Some session_id_hdr;
-    Lwt_mutex.unlock session_id_mutex;
-    Lwt.return session_id_hdr
-
-let resp_success = function "result", `String "success" -> true | _ -> false
-
-let add_torrent url =
-  let dl_dir =
-    match flags.download_dir with
-    | Some d -> [ ("download-dir", `String d) ]
-    | None -> []
-  in
-  let json =
-    `Assoc
-      [
-        ("method", `String "torrent-add");
-        ("arguments", `Assoc (("filename", `String url) :: dl_dir));
-      ]
-  in
-  let%lwt headers = session_id () in
-  let body = Cohttp_lwt.Body.of_string @@ Yojson.to_string json in
-  let%lwt _, body =
-    Cohttp_lwt_unix.Client.post ~body ~headers transmission_url
-  in
-  let%lwt resp = Cohttp_lwt.Body.to_string body in
-  match Yojson.Basic.from_string resp with
-  | `Assoc assocs ->
-    if List.exists resp_success assocs then Lwt.return ()
-    else Lwt.fail (Failure "Couldn't add the torrent to transmission")
-  | _ -> Lwt.fail (Failure "Couldn't add the torrent to transmission")
-*)
-
 type torrent = { filename : string; link : string }
+
+let pp_torrent out { filename; link } =
+  Format.fprintf out "{ filename = %S; link = %S }" filename link
 
 type backend =
   | Directory of string

@@ -15,10 +15,7 @@ let default_seen_file =
   in
   Some (xdg_config_dir / "nene" / "shows.scm")
 
-let nene config_file seen_file log_level style_renderer jobs =
-  Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level log_level;
-  Logs.set_reporter (Logs_fmt.reporter ());
+let nene config_file seen_file jobs =
   let* seen_file =
     seen_file
     |> option_or default_seen_file
@@ -28,7 +25,7 @@ let nene config_file seen_file log_level style_renderer jobs =
              "Coulnd't determine the config dir, you should explicitly specify \
               the seen file with the --seen option.")
   in
-  let seen = Episode.Seen.read_file seen_file in
+  let seen = Seen.read_file seen_file in
   let* () =
     if jobs > 0 then Ok ()
     else Error (`Msg "Specify a number of jobs higher than 0.")
@@ -38,8 +35,9 @@ let nene config_file seen_file log_level style_renderer jobs =
     |> Option.to_result
          ~none:(`Msg "An error occurred while reading the config file.")
   in
+  let backend = Backend.from_cfg backend in
   let seen = Lwt_main.run (Core.run ~seen ~jobs ~backend ~trackers) in
-  Episode.Seen.write_file seen_file seen;
+  Seen.write_file seen_file seen;
   Ok ()
 
 open Cmdliner
@@ -54,20 +52,8 @@ let seen_file =
   in
   Arg.(value & opt (some string) None & info [ "seen" ] ~docv:"FILE" ~doc)
 
-(* type backend = Transmission | Directory
-
-let backend =
-  let backend = [ ("transmission", Transmission); ("dir", Directory) ] in
-  let doc = "Which backend to use for saving the torrent files." in
-  let docv = "transmission|dir" in
-  Arg.(value & opt (enum backend) Directory & info [ "backend" ] ~docv ~doc) *)
-
 let jobs = Arg.(value & opt int 4 & info [ "j"; "jobs" ] ~docv:"COUNT")
 
-let nene_t =
-  Term.(
-    term_result
-      ( const nene $ config_file $ seen_file $ Logs_cli.level ()
-      $ Fmt_cli.style_renderer () $ jobs ))
+let nene_t = Term.(term_result (const nene $ config_file $ seen_file $ jobs))
 
 let () = Term.eval (nene_t, Term.info "nene") |> Term.exit

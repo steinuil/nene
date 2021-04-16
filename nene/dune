@@ -1,22 +1,6 @@
 (library
  (name nene_lib)
- (libraries
-  str
-  xml-light
-  sexplib
-  cohttp-lwt-unix
-  tls
-  yojson
-  directories
-  fmt
-  fmt.cli
-  fmt.tty
-  logs
-  logs.fmt
-  logs.cli
-  patche
-  re
-  lwt-pipe)
+ (libraries sexplib cohttp-lwt-unix lwt_ssl yojson patche re)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test lwt_ppx)))

@@ -2,7 +2,7 @@
 
 (name nene)
 
-(version 0.2)
+(version 1.0)
 
 (license "MIT")
 
@@ -15,4 +15,4 @@
  (name nene)
  (synopsis "")
  (description "")
- (depends))
+ (depends sexplib cohttp-lwt-unix lwt_ssl yojson xmlm patche re cmdliner))

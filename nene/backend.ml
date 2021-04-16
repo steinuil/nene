@@ -1,8 +1,9 @@
 open Lwt.Syntax
+open Lwt.Infix
 
 exception Add_torrent_failure of string
 
-exception Request_error
+exception Request_error of exn
 
 module Transmission = struct
   let session_id_header_name = "X-Transmission-Session-Id"
@@ -47,7 +48,8 @@ module Transmission = struct
           match session_id with
           | Some header -> Lwt.return header
           | None ->
-              let* resp, _ = Cohttp_lwt_unix.Client.get host in
+              let* resp, body = Cohttp_lwt_unix.Client.get host in
+              let* () = Cohttp_lwt.Body.drain_body body in
               Lwt.return (self#set_from_response resp)
         in
         Lwt_mutex.unlock mutex;
@@ -68,19 +70,18 @@ module Transmission = struct
         add_torrent torrent
       else
         let* body =
-          let* body = Cohttp_lwt.Body.to_string body in
-          try Yojson.Safe.from_string body |> Lwt.return
-          with Yojson.Safe.Finally _ -> Lwt.fail Request_error
+          body |> Cohttp_lwt.Body.to_string >|= Yojson.Safe.from_string
         in
         match response_result body with
         | Some "success" -> Lwt.return_unit
         | Some error -> Lwt.fail (Add_torrent_failure error)
-        | None -> Lwt.fail Request_error
+        | None ->
+            Lwt.fail (Request_error (Failure "invalid Transmission response"))
     in
     fun torrent ->
       try%lwt add_torrent torrent with
-      | (Add_torrent_failure _ | Request_error) as exn -> Lwt.fail exn
-      | _ -> Lwt.fail Request_error
+      | (Add_torrent_failure _ | Request_error _) as exn -> Lwt.fail exn
+      | exn -> Lwt.fail (Request_error exn)
 end
 
 (** @raise Add_torrent_failure when Transmission returns an error message
@@ -95,5 +96,5 @@ let download url =
     let* resp, body = Cohttp_lwt_unix.Client.get url in
     if Cohttp.Code.is_success @@ Cohttp.Code.code_of_status resp.status then
       Cohttp_lwt.Body.to_string body
-    else Lwt.fail Request_error
-  with _ -> Lwt.fail Request_error
+    else Lwt.fail (Request_error (Failure "failed to download"))
+  with exn -> Lwt.fail (Request_error exn)

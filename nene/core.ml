@@ -1,92 +1,49 @@
-open Types
+open Lwt.Syntax
+open Lwt.Infix
 
-let is_episode_new seen_eps Episode.{ number; version } =
-  match Episode.Seen.find_opt number seen_eps with
-  | None -> true
-  | Some last_ver -> version > last_ver
+let torrents_from_rss rss_url =
+  match%lwt Backend.download rss_url >|= Rss.torrents_from_string with
+  | Some torrents -> Lwt.return torrents
+  | None ->
+      Format.printf "[WARN] invalid RSS feed returned: %a\n" Uri.pp rss_url;
+      Lwt.return []
+  | exception _ ->
+      Format.printf "[WARN] couldn't fetch RSS feed: %a\n" Uri.pp rss_url;
+      Lwt.return []
 
-let new_episodes pattern (seen_eps, new_links) Config.{ filename; link } =
-  match Pattern.parse_filename pattern filename with
-  | None -> (seen_eps, new_links)
-  | Some ep ->
-      if is_episode_new seen_eps ep then
-        (Episode.Seen.add ep.number ep.version seen_eps, (link, ep) :: new_links)
-      else (seen_eps, new_links)
+let ( let+ ) = Option.bind
 
-let get_new_episodes ~callback pattern seen_eps torrents =
-  let seen, ep_links =
-    List.fold_left (new_episodes pattern) (seen_eps, []) torrents
-  in
-  let%lwt () = Lwt_list.iter_s callback ep_links in
-  Lwt.return seen
+let pp_episode out (name, Episode.{ number; version }) =
+  if version = 1 then Format.fprintf out "%s - %d" name number
+  else Format.fprintf out "%s - %dv%d" name number version
 
-let count = ref 0
-
-let total = ref 0
-
-let print_status () = Lwt_io.printf "\rProcessed %2d/%d%!" !count !total
-
-(* let log_print action str =
-   let%lwt () = Lwt_io.printlf "\r\x1b[1m* \x1b[32m%s\x1b[0m: %s%!" action str in
-   print_status () *)
-
-let error_print str =
-  let%lwt () = Lwt_io.printlf "\r\x1b[1;31m[ERROR]\x1b[0m %s%!" str in
-  print_status ()
-
-let format_show title { number; version } =
-  let buf = Buffer.create 16 in
-  Printf.bprintf buf "%s %d" title number;
-  if version <> 1 then Printf.bprintf buf "v%d" version;
-  (*Buffer.add_string buf "\x1b[0m";*)
-  Buffer.contents buf
-
-(* TODO: deal with errors from adding the torrent *)
-(* let _download_ep title (link, { number; version }) =
-   let%lwt () = Config.add_torrent link in
-   log_print "downloaded" (format_show title { number; version }) *)
-
-let die_fatal str =
-  Printf.printf "\r\x1b[1;31mFatal error\x1b[0m: %s\n" str;
-  exit 1
-
-let run ~trackers ~seen ~jobs:_ ~backend:_ =
-  total := List.length trackers;
+let run ~trackers ~seen ~jobs:_ ~backend =
   let%lwt new_seen =
     Lwt_list.map_p
       (fun Config.{ rss_url; shows } ->
-        (* Download and parse RSS documents *)
-        let%lwt doc = Backend.download rss_url in
-        let%lwt torrents =
-          match Rss.torrents_from_string doc with
-          | Some t -> Lwt.return t
-          | None ->
-              let%lwt () =
-                error_print
-                  (Printf.sprintf
-                     "\x1b[1m%s\x1b[0m returned an invalid document"
-                     (Uri.to_string rss_url))
-              in
-              Lwt.return []
-        in
-        incr count;
-        let%lwt () = print_status () in
+        let* torrents = torrents_from_rss rss_url in
+        List.filter_map
+          (fun torrent ->
+            let+ name, ep = Seen.parse shows torrent.Config.filename in
+            if Seen.is_new seen name ep then Some ((name, ep), torrent)
+            else None)
+          torrents
+        |> Lwt_list.filter_map_s (fun (seen, torrent) ->
+               try%lwt
+                 backend torrent;%lwt
+                 Format.printf "[INFO] added torrent: %a\n" pp_episode seen;
+                 Lwt.return (Some seen)
+               with
+               | Backend.Add_torrent_failure f ->
+                   Format.printf
+                     "[WARN] couldn't add torrent %a to Transmission: %s\n"
+                     Config.pp_torrent torrent f;
 
-        (* Determine the new episodes and download them *)
-        shows
-        |> Lwt_list.map_s (fun Config.{ name; pattern } ->
-               let seen_eps =
-                 try List.assoc name seen with Not_found -> Episode.Seen.empty
-               in
-               let%lwt seen_eps =
-                 get_new_episodes
-                   ~callback:(fun (url, _) ->
-                     print_endline url;
-                     Lwt.return ())
-                   pattern seen_eps torrents
-               in
-               Lwt.return (name, seen_eps)))
+                   Lwt.return None
+               | Backend.Request_error _ ->
+                   Format.printf "[WARN] couldn't add torrent %a\n"
+                     Config.pp_torrent torrent;
+                   Lwt.return None))
       trackers
   in
-  Lwt_io.printf "\r\x1b[K%!";%lwt
-  Lwt.return (List.flatten new_seen)
+  List.flatten new_seen |> Seen.merge seen |> Lwt.return
