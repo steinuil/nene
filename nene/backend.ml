@@ -84,12 +84,19 @@ module Transmission = struct
       | exn -> Lwt.fail (Request_error exn)
 end
 
+let download_torrent_to_file download_dir Config.{ filename; link } =
+  let* _, body = Cohttp_lwt_unix.Client.get (Uri.of_string link) in
+  let body = body |> Cohttp_lwt.Body.to_stream in
+  let filename = Filename.concat download_dir filename ^ ".torrent" in
+  Lwt_io.with_file ~mode:Lwt_io.output filename (fun chan ->
+      Lwt_stream.iter_s (Lwt_io.write chan) body)
+
 (** @raise Add_torrent_failure when Transmission returns an error message
     @raise Request_error when an error occurs during the request *)
 let from_cfg = function
   | Config.Transmission { host; download_dir } ->
       Transmission.make_backend host download_dir
-  | Directory _ -> failwith "a"
+  | Directory dir -> download_torrent_to_file dir
 
 let download url =
   try%lwt

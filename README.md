@@ -4,8 +4,34 @@ A small utility to automate downloading torrents of ongoing series via RSS.
 
 ## Config file
 
-Nene is controlled through a JSON config file specifying the downloader (currently only transmission is available),
-the trackers, and the shows to be found on these trackers.
+Nene is controlled through a JSON config file specifying the downloader, the trackers, and the shows to be found on these trackers.
+
+The downloader can be one either:
+
+- A directory, specified with the `directory` key and the path to the directory as value.
+
+  ```json
+  {
+    "backend": {
+      "directory": "/path/to/directory"
+    },
+    "trackers": ...
+  }
+  ```
+
+- Transmission, specified with the `transmission` key as an object containing the url of the RPC
+  and the directory that the torrent files will be downloaded into.
+  ```json
+  {
+    "backend": {
+      "transmission": {
+        "host": "http://localhost:9091/transmission/rpc",
+        "download_dir": "/var/transmission/shows"
+      }
+    },
+    "trackers": ...
+  }
+  ```
 
 To recognize the episode name, two mechanisms can be used:
 
@@ -17,6 +43,8 @@ To recognize the episode name, two mechanisms can be used:
 
 - For more complex cases, Perl-compatible regular expressions (PCRE) can be used by specifying in an object
   the expression, the index of the group containing the episode, and the index of the group containing the version.
+
+Here's a full example of a config file.
 
 ```json
 {
