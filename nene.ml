@@ -56,4 +56,4 @@ let jobs = Arg.(value & opt int 4 & info [ "j"; "jobs" ] ~docv:"COUNT")
 
 let nene_t = Term.(term_result (const nene $ config_file $ seen_file $ jobs))
 
-let () = Term.eval (nene_t, Term.info "nene") |> Term.exit
+let () = Cmd.eval (Cmd.v (Cmd.info "nene") nene_t) |> Stdlib.exit
