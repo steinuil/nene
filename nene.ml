@@ -1,21 +1,28 @@
 open Nene_lib
 
 let ( let* ) = Result.bind
-
 let ( let+ ) = Option.bind
-
 let option_or d = function Some _ as s -> s | None -> d
 
 let default_seen_file =
   let ( / ) = Filename.concat in
-  let+ xdg_config_dir =
-    match Sys.getenv_opt "XDG_CONFIG_DIR" with
+  let+ xdg_state_home =
+    match Sys.getenv_opt "XDG_STATE_HOME" with
     | Some dir -> Some dir
-    | None -> Sys.getenv_opt "HOME" |> Option.map (fun h -> h / ".config")
+    | None ->
+        Sys.getenv_opt "HOME" |> Option.map (fun h -> h / ".local" / "state")
   in
-  Some (xdg_config_dir / "nene" / "shows.scm")
+  Some (xdg_state_home / "nene" / "shows.scm")
+
+let rec mkdir_p ?(permissions = 0o755) dir =
+  if Sys.file_exists (Filename.dirname dir) then Sys.mkdir dir permissions
+  else mkdir_p (Filename.dirname dir) ~permissions
 
 let nene config_file seen_file jobs =
+  let* () =
+    if jobs > 0 then Ok ()
+    else Error (`Msg "Specify a number of jobs higher than 0.")
+  in
   let* seen_file =
     seen_file
     |> option_or default_seen_file
@@ -26,10 +33,6 @@ let nene config_file seen_file jobs =
               the seen file with the --seen option.")
   in
   let seen = Seen.read_file seen_file in
-  let* () =
-    if jobs > 0 then Ok ()
-    else Error (`Msg "Specify a number of jobs higher than 0.")
-  in
   let* Config.{ backend; trackers } =
     Config.File.parse_file config_file
     |> Option.to_result
@@ -37,6 +40,8 @@ let nene config_file seen_file jobs =
   in
   let backend = Backend.from_cfg backend in
   let seen = Lwt_main.run (Core.run ~seen ~jobs ~backend ~trackers) in
+  if not (Sys.file_exists (Filename.dirname seen_file)) then
+    mkdir_p (Filename.dirname seen_file);
   Seen.write_file seen_file seen;
   Ok ()
 
@@ -53,7 +58,5 @@ let seen_file =
   Arg.(value & opt (some string) None & info [ "seen" ] ~docv:"FILE" ~doc)
 
 let jobs = Arg.(value & opt int 4 & info [ "j"; "jobs" ] ~docv:"COUNT")
-
 let nene_t = Term.(term_result (const nene $ config_file $ seen_file $ jobs))
-
 let () = Cmd.eval (Cmd.v (Cmd.info "nene") nene_t) |> Stdlib.exit

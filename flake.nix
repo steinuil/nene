@@ -24,6 +24,7 @@
           # You can add "development" packages here. They will get added to the devShell automatically.
           ocaml-lsp-server = "*";
           ocamlformat = "*";
+          utop = "*";
         };
 
         query = devPackagesQuery // {
