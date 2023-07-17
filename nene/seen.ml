@@ -21,7 +21,6 @@ let seen_test =
   [ (1, 2); (2, 1); (3, 5); (5, 3) ] |> List.to_seq |> Episode_map.of_seq
 
 let%test "new episode" = is_new seen_test Episode.{ number = 4; version = 0 }
-
 let%test "new version" = is_new seen_test Episode.{ number = 2; version = 2 }
 
 let%test "same episode" =
@@ -46,17 +45,17 @@ let is_new seen name ep =
   | Some _ -> false
 
 (* let parse_new ~shows ~seen Config.{ filename; link } =
-  let+ name, ep =
-    List.find_map
-      (fun Config.{ name; pattern } ->
-        let+ ep = Pattern.parse_filename pattern filename in
-        Some (name, ep))
-      shows
-  in
-  match Shows_map.find_opt name seen with
-  | Some seen when is_new seen ep -> Some (name, link, ep)
-  | None -> Some (name, link, ep)
-  | Some _ -> None *)
+   let+ name, ep =
+     List.find_map
+       (fun Config.{ name; pattern } ->
+         let+ ep = Pattern.parse_filename pattern filename in
+         Some (name, ep))
+       shows
+   in
+   match Shows_map.find_opt name seen with
+   | Some seen when is_new seen ep -> Some (name, link, ep)
+   | None -> Some (name, link, ep)
+   | Some _ -> None *)
 
 let merge shows new_eps =
   List.fold_left

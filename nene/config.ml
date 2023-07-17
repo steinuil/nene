@@ -8,9 +8,7 @@ type backend =
   | Transmission of { host : Uri.t; download_dir : string option }
 
 type show_pattern = { name : string; pattern : Pattern.t }
-
 type tracker = { rss_url : Uri.t; shows : show_pattern list }
-
 type settings = { backend : backend; trackers : tracker list }
 
 module File = struct
@@ -34,8 +32,8 @@ module File = struct
          (required "name" ->= string)
          (or_
             (required "regexp" ->= regexp)
-            ( required "pattern" ->= string
-            |> map_option ~none:(fun _ -> `Json_error "a") Pattern.compile )))
+            (required "pattern" ->= string
+            |> map_option ~none:(fun _ -> `Json_error "a") Pattern.compile)))
 
   let transmission_backend =
     assoc
@@ -51,8 +49,8 @@ module File = struct
 
   let backend =
     assoc
-      ( (required "directory" ->= string ->> fun dir -> Directory dir)
-      <|> required "transmission" ->= transmission_backend )
+      ((required "directory" ->= string ->> fun dir -> Directory dir)
+      <|> required "transmission" ->= transmission_backend)
 
   let tracker =
     assoc

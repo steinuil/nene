@@ -2,7 +2,6 @@ open Lwt.Syntax
 open Lwt.Infix
 
 exception Add_torrent_failure of string
-
 exception Request_error of exn
 
 module Transmission = struct

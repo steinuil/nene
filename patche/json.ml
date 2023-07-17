@@ -50,7 +50,7 @@ let list_v p : 'a list t = function
         | item :: rest -> (
             match p item with
             | Ok v -> loop (v :: acc) rest
-            | Error _ as err -> err )
+            | Error _ as err -> err)
       in
       loop [] l
   | _ -> Error (`Json_error "e")

@@ -1,5 +1,4 @@
 type el = string * tree list
-
 and tree = El of el | Data of string
 
 exception Invalid_feed
@@ -37,5 +36,4 @@ let torrents_from source =
   with Invalid_feed -> None
 
 let torrents_from_channel chan = torrents_from (`Channel chan)
-
 let torrents_from_string txt = torrents_from (`String (0, txt))

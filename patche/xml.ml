@@ -16,7 +16,6 @@ module Attr = struct
   type ('a, 'err) t = ('a, input, ([> error ] as 'err)) parser
 
   let named name = function ("", n), v when n = name -> Some v | _ -> None
-
   let optional name ls = Ok (list_remove_opt (named name) ls)
 
   let required name ls =
@@ -25,14 +24,13 @@ module Attr = struct
     | None, _ -> Error (`Attribute_not_found name)
 
   let str = required
-
   let str_o = optional
 
   let opt_conv v f err =
     match v with
     | None -> return None
     | Some v -> (
-        match f v with Some i -> return (Some i) | None -> error (err v) )
+        match f v with Some i -> return (Some i) | None -> error (err v))
 
   open Infix
 
@@ -107,11 +105,8 @@ let el_end =
   apply @@ function `El_end -> Ok () | s -> Error (`Expected_el_end s)
 
 let el_ab name attr body = el_start_a name attr *<> body *< el_end
-
 let el_a name attr = el_start_a name attr *< el_end
-
 let el_b name body = el_start name *> body *< el_end
-
 let el name = el_start name *< el_end
 
 let el_discard name =
@@ -137,9 +132,8 @@ let inp str =
 let make_input = Lazy_list.of_xml_input
 
 let%test_module "el_discard" =
-  ( module struct
+  (module struct
     let%test "empty" = run (el_discard "el") (inp "<el></el>") = Ok ()
-
     let%test "data" = run (el_discard "el") (inp "<el>a</el>") = Ok ()
 
     let%test "single element" =
@@ -152,4 +146,4 @@ let%test_module "el_discard" =
       run (el_discard "el")
         (inp "<el><a><b>c<c><d />d</c></b><ee>asd</ee></a></el>")
       = Ok ()
-  end )
+  end)
