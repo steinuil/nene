@@ -60,5 +60,10 @@
             # You can add packages from nixpkgs here
           ];
         };
+
+        nixosModules.default = {
+          nixpkgs.overlays = [ (final: prev: { nene = packages.nene; }) ];
+          imports = [ ./nix/module.nix ];
+        };
       });
 }
