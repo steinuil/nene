@@ -75,3 +75,83 @@ Here's a full example of a config file.
   ]
 }
 ```
+
+## Installation and usage with NixOS
+
+This repository provides a flake containing the `nene` package and a NixOS module for
+easy installation and setup on NixOS. Here is an example configuration:
+
+### flake.nix
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
+    nene = {
+      url = "github:steinuil/nene";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+  };
+
+  outputs = { self, nixpkgs, flake-utils, nene }: {
+    nixosConfigurations.hostname = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        nene.nixosModules.x86_64-linux
+        ./configuration.nix
+      ];
+    };
+  };
+}
+```
+
+### configuration.nix
+
+```nix
+{ pkgs, lib, ... }:
+{
+  # ...
+
+  services.transmission = {
+    enable = true;
+    settings.download-dir = "/mnt/external";
+    # ...
+  };
+
+  services.nene = {
+    enable = true;
+    after = [ "transmission.service" ];
+    timerInterval = "15m";
+    settings = {
+      backend.transmission = {
+        host = "http://localhost:9091/transmission/rpc";
+        download_dir = "/mnt/external/Anime";
+      };
+      trackers = [
+        {
+          url = "https://example.com/rss";
+          shows = [
+            {
+              name = "SSSS.GRIDMAN";
+              pattern = "[Commie] SSSS.GRIDMAN - <episode> [**].mkv";
+            }
+            {
+              name = "Mewkledreamy";
+              regexp = {
+                pattern = "Mewkledreamy - (\\d+) \\[v(\\d+)\\]";
+                episode = 1;
+                version = 2;
+              };
+            }
+          ]
+        }
+      ];
+    };
+  };
+}
+```
+
+This will install a systemd service and a systemd timer that will run `nene` every 15 minutes
+and send the torrents to a Transmission instance running locally.
