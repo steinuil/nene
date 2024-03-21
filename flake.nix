@@ -11,59 +11,79 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, opam-nix }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
-      let
-        pkgs = (import nixpkgs) { inherit system; };
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    opam-nix,
+  }: let
+    makeOpamPkgs = {
+      devPackages,
+      ocamlVersion,
+      overlay ? (final: prev: {}),
+    }: system: let
+      pkgs = import nixpkgs {
+        inherit system;
+      };
 
-        on = opam-nix.lib.${system};
-        localPackagesQuery = builtins.mapAttrs (_: pkgs.lib.last)
-          (on.listRepo (on.makeOpamRepo ./.));
+      opamNixLib = opam-nix.lib.${system};
 
-        devPackagesQuery = {
-          # You can add "development" packages here. They will get added to the devShell automatically.
-          ocaml-lsp-server = "*";
-          ocamlformat = "*";
-          utop = "*";
-        };
+      localPackagesQuery =
+        builtins.mapAttrs (_: pkgs.lib.last)
+        (opamNixLib.listRepo (opamNixLib.makeOpamRepo ./.));
 
-        query = devPackagesQuery // {
-          ## You can force versions of certain packages here, e.g:
-          # - force the ocaml compiler to be taken from opam-repository:
-          ocaml-base-compiler = "4.14.1";
-          # - or force the compiler to be taken from nixpkgs and be a certain version:
-          # ocaml-system = "4.14.1";
-          ## - or force ocamlfind to be a certain version:
-          # ocamlfind = "1.9.2";
-        };
+      devPackagesQuery = devPackages;
 
-        scope = on.buildOpamProject' { } ./. query;
-        overlay = final: prev: {
-          # You can add overrides here
-        };
-        scope' = scope.overrideScope' overlay;
+      query =
+        devPackagesQuery
+        // {ocaml-base-compiler = ocamlVersion;};
 
-        devPackages = builtins.attrValues
-          (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope');
-        # Packages in this workspace
-        packages =
-          pkgs.lib.getAttrs (builtins.attrNames localPackagesQuery) scope';
-      in
-      {
-        legacyPackages = scope';
+      scope = (opamNixLib.buildOpamProject' {} ./. query).overrideScope' overlay;
 
-        inherit packages;
+      devPackages' =
+        builtins.attrValues
+        (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
 
-        devShells.default = pkgs.mkShell {
-          inputsFrom = builtins.attrValues packages;
-          buildInputs = devPackages ++ [
-            # You can add packages from nixpkgs here
-          ];
-        };
+      packages = pkgs.lib.getAttrs (builtins.attrNames localPackagesQuery) scope;
+    in {
+      legacyPackages = scope;
+      devPackages = devPackages';
+      inherit packages;
+    };
 
-        nixosModules.default = {
-          nixpkgs.overlays = [ (final: prev: { nene = packages.nene; }) ];
-          imports = [ ./nix/module.nix ];
-        };
-      });
+    perSystem = makeOpamPkgs {
+      ocamlVersion = "4.14.1";
+      devPackages = {
+        ocaml-lsp-server = "*";
+        ocamlformat = "*";
+        utop = "*";
+      };
+    };
+
+    overlay = final: prev: {nene = (perSystem prev.system).packages.${prev.system}.nene;};
+  in
+    {
+      overlays = [overlay];
+
+      nixosModules.default = {
+        nixpkgs.overlays = [overlay];
+        imports = [./nix/module.nix];
+      };
+    }
+    // flake-utils.lib.eachSystem ["x86_64-linux" "aarch64-linux"] (system: let
+      pkgs = import nixpkgs {
+        inherit system;
+      };
+
+      p = perSystem system;
+    in {
+      legacyPackages = p.legacyPackages;
+
+      packages = p.packages;
+
+      devShells.default = pkgs.mkShell {
+        inputsFrom = builtins.attrValues p.packages;
+        buildInputs = p.devPackages;
+      };
+    });
 }
