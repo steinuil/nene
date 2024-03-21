@@ -63,7 +63,7 @@
     overlay = final: prev: {nene = (perSystem prev.system).packages.${prev.system}.nene;};
   in
     {
-      overlays = [overlay];
+      overlays = {default = overlay;};
 
       nixosModules = rec {
         nene = {
