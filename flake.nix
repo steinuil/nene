@@ -65,9 +65,13 @@
     {
       overlays = [overlay];
 
-      nixosModules.default = {
-        nixpkgs.overlays = [overlay];
-        imports = [./nix/module.nix];
+      nixosModules = rec {
+        nene = {
+          nixpkgs.overlays = [overlay];
+          imports = [./nix/module.nix];
+        };
+
+        default = nene;
       };
     }
     // flake-utils.lib.eachSystem ["x86_64-linux" "aarch64-linux"] (system: let
