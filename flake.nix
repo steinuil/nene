@@ -60,7 +60,7 @@
       };
     };
 
-    overlay = final: prev: {nene = (perSystem prev.system).packages.${prev.system}.nene;};
+    overlay = final: prev: {nene = (perSystem prev.system).packages.nene;};
   in
     {
       overlays = {default = overlay;};
