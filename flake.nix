@@ -38,7 +38,7 @@
         devPackagesQuery
         // {ocaml-base-compiler = ocamlVersion;};
 
-      scope = (opamNixLib.buildOpamProject' {} ./. query).overrideScope' overlay;
+      scope = (opamNixLib.buildOpamProject' {} ./. query).overrideScope overlay;
 
       devPackages' =
         builtins.attrValues
