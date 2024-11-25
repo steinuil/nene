@@ -17,10 +17,10 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
       opam-nix,
+      ...
     }:
     let
       makeOpamPkgs =
