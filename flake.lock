@@ -1,13 +1,12 @@
 {
   "nodes": {
     "flake-compat": {
-      "flake": false,
       "locked": {
-        "lastModified": 1627913399,
-        "narHash": "sha256-hY8g6H2KFL8ownSiFeMOjwPC8P0ueXpCVEbxgda3pko=",
+        "lastModified": 1696426674,
+        "narHash": "sha256-kvjfFW7WAETZlt09AgDn1MrtKzP7t90Vf7vypd3OL1U=",
         "owner": "edolstra",
         "repo": "flake-compat",
-        "rev": "12c64ca55c1014cdc1b16ed5a804aa8576601ff2",
+        "rev": "0f9255e01c2351cc7d116c072cb317785dd33b33",
         "type": "github"
       },
       "original": {
@@ -67,7 +66,9 @@
     },
     "opam-nix": {
       "inputs": {
-        "flake-compat": "flake-compat",
+        "flake-compat": [
+          "flake-compat"
+        ],
         "flake-utils": [
           "flake-utils"
         ],
@@ -148,6 +149,7 @@
     },
     "root": {
       "inputs": {
+        "flake-compat": "flake-compat",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "opam-nix": "opam-nix"
