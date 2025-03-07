@@ -2,15 +2,20 @@
   description = "Utility to automate downloads of torrent series";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     flake-compat.url = "github:edolstra/flake-compat";
+    opam-repository = {
+      url = "github:ocaml/opam-repository";
+      flake = false;
+    };
     opam-nix = {
       url = "github:tweag/opam-nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
         flake-compat.follows = "flake-compat";
+        opam-repository.follows = "opam-repository";
       };
     };
   };
@@ -64,7 +69,6 @@
         devPackages = {
           ocaml-lsp-server = "*";
           ocamlformat = "*";
-          utop = "*";
         };
       };
 
