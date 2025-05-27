@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.services.nene;
@@ -23,89 +28,96 @@ in
       default = "15m";
     };
 
-    settings = with types; mkOption {
-      type = submodule {
-        options.backend = mkOption {
-          type = either
-            (submodule {
-              options.transmission = mkOption {
-                description = "Send torrents to Transmission RPC";
-                type = submodule {
-                  options.host = mkOption {
-                    type = str;
-                    description = "RPC URL to Transmission";
-                    example = "http://localhost:9091/transmission/rpc";
-                  };
-                  options.download_dir = mkOption {
-                    type = nullOr path;
-                    description = "The directory Transmission should download the torrent to";
-                    example = "/mnt/external/torrents";
-                  };
-                };
-              };
-            })
-            (submodule {
-              options.directory = mkOption {
-                description = "Download .torrent files to a directory";
-                type = path;
-              };
-            });
-        };
-        options.trackers = mkOption {
-          type = listOf (submodule {
-            options.url = mkOption {
-              description = "URL of the RSS feed";
-              type = str;
-            };
-            options.shows = mkOption {
-              description = "List of shows to download from this feed";
-              type = listOf (either
+    settings =
+      with types;
+      mkOption {
+        type = submodule {
+          options.backend = mkOption {
+            type =
+              either
                 (submodule {
-                  options.name = mkOption {
-                    type = str;
-                    description = "Name of the show";
-                  };
-                  options.pattern = mkOption {
-                    type = str;
-                    description = "Pattern to match the filename with, see https://github.com/steinuil/nene/blob/master/README.md for documentation";
-                    example = "[Commie] SSSS.GRIDMAN - <episode> [**].mkv";
-                  };
-                })
-                (submodule {
-                  options.name = mkOption {
-                    type = str;
-                    description = "Name of the show";
-                  };
-                  options.regexp = mkOption {
+                  options.transmission = mkOption {
+                    description = "Send torrents to Transmission RPC";
                     type = submodule {
-                      options.pattern = mkOption {
-                        description = "Perl-compatible regular expression (PCRE) containing groups matching the episode name and version";
+                      options.host = mkOption {
                         type = str;
-                        example = "Mewkledreamy - (\\d+) \\[v(\\d+)\\]";
+                        description = "RPC URL to Transmission";
+                        example = "http://localhost:9091/transmission/rpc";
                       };
-                      options.episode = mkOption {
-                        description = "Index of the group specifying the episode number in the regular expression";
-                        type = ints.positive;
-                        example = 1;
-                      };
-                      options.version = mkOption {
-                        description = "Index of the group specifying the version of the release in the regular expression";
-                        type = ints.positive;
-                        example = 2;
+                      options.download_dir = mkOption {
+                        type = nullOr path;
+                        description = "The directory Transmission should download the torrent to";
+                        example = "/mnt/external/torrents";
                       };
                     };
                   };
-                }));
-            };
-          });
+                })
+                (submodule {
+                  options.directory = mkOption {
+                    description = "Download .torrent files to a directory";
+                    type = path;
+                  };
+                });
+          };
+          options.trackers = mkOption {
+            type = listOf (submodule {
+              options.url = mkOption {
+                description = "URL of the RSS feed";
+                type = str;
+              };
+              options.shows = mkOption {
+                description = "List of shows to download from this feed";
+                type = listOf (
+                  either
+                    (submodule {
+                      options.name = mkOption {
+                        type = str;
+                        description = "Name of the show";
+                      };
+                      options.pattern = mkOption {
+                        type = str;
+                        description = "Pattern to match the filename with, see https://github.com/steinuil/nene/blob/master/README.md for documentation";
+                        example = "[Commie] SSSS.GRIDMAN - <episode> [**].mkv";
+                      };
+                    })
+                    (submodule {
+                      options.name = mkOption {
+                        type = str;
+                        description = "Name of the show";
+                      };
+                      options.regexp = mkOption {
+                        type = submodule {
+                          options.pattern = mkOption {
+                            description = "Perl-compatible regular expression (PCRE) containing groups matching the episode name and version";
+                            type = str;
+                            example = "Mewkledreamy - (\\d+) \\[v(\\d+)\\]";
+                          };
+                          options.episode = mkOption {
+                            description = "Index of the group specifying the episode number in the regular expression";
+                            type = ints.positive;
+                            example = 1;
+                          };
+                          options.version = mkOption {
+                            description = "Index of the group specifying the version of the release in the regular expression";
+                            type = ints.positive;
+                            example = 2;
+                          };
+                        };
+                      };
+                    })
+                );
+              };
+            });
+          };
         };
       };
-    };
   };
 
   config = mkIf cfg.enable {
     systemd.services.nene = {
       script = "${cfg.package}/bin/nene --seen \"$STATE_DIRECTORY/nene.s\" ${configFile}";
+      after = [ "network-online.target" ] ++ cfg.after;
+      wants = [ "network-online.target" ] ++ cfg.after;
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
@@ -114,7 +126,6 @@ in
     };
 
     systemd.timers.nene = {
-      after = [ "network-online.target" ] ++ cfg.after;
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnBootSec = cfg.timerInterval;
