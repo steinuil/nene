@@ -14,7 +14,7 @@ in
   options.services.nene = {
     enable = mkEnableOption "nene";
 
-    package = mkPackageOptionMD pkgs "nene" { };
+    package = mkPackageOption pkgs "nene" { };
 
     after = mkOption {
       description = "List of systemd services that should be online before starting the timer";
